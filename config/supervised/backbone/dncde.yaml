@@ -1,0 +1,8 @@
+_target_: src.backbones.dncde.DecoupledNCDE
+nhead: 8
+past_window: 128
+future_window: 128
+bandwidth: 16
+temperature: 1.0
+tol: 1e-3
+disable_weights: False

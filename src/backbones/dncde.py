@@ -1,0 +1,112 @@
+"""The file with the DecoupledNCDE backbone."""
+
+from math import sqrt
+
+import torch
+import torchode as to
+from torch import nn
+
+from ..interp.kernel_regression import KernelRegression
+from ..mask_utils import maskmax
+from ..nn.vf import MultiHeadVF
+
+
+class DecoupledNCDE(nn.Module):
+    """The DecoupledNCDE backbone."""
+
+    def __init__(
+        self,
+        hidden_dim: int,
+        nhead: int,
+        past_window: int,
+        future_window: int,
+        bandwidth: float = 1.0,
+        temperature: float = 1.0,
+        tol: float = 1e-3,
+        disable_weights=False,
+    ):
+        """Initialize the DecoupledNCDE backbone.
+
+        Args:
+        ----
+            hidden_dim (int): The hidden dimension.
+            nhead (int): the number of heads.
+            smoothing (float): the smoothing value.
+            tol (float): The tolerance of the ODE solver.
+
+        """
+        super().__init__()
+
+        self.hidden_dim = hidden_dim  # referred to as H
+        self.nhead = nhead  # referred to as M
+        self.tol = tol
+        self.disable_weights = disable_weights
+
+        self.interp = KernelRegression(
+            past_window=past_window,
+            future_window=future_window,
+            bandwidth=bandwidth,
+            temperature=temperature,
+        )
+
+        self.Q = nn.Parameter(torch.empty(nhead, hidden_dim))
+        self.K = nn.Linear(hidden_dim, hidden_dim, bias=False)
+        self.V = nn.Linear(hidden_dim, hidden_dim, bias=False)
+        self.h0 = nn.Linear(hidden_dim, hidden_dim)
+        self.headdim = hidden_dim // nhead
+        self.f = MultiHeadVF(hidden_dim, nhead=nhead, interp=self.interp)
+        self.term = to.ODETerm(self.f)
+        self.stepper = to.Dopri5(self.term)
+        self.controller = to.IntegralController(self.tol, self.tol, term=self.term)
+        self.solver = to.AutoDiffAdjoint(
+            step_method=self.stepper,
+            step_size_controller=self.controller,
+            backprop_through_step_size_control=False,
+        )
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        """Reset the parameters of the DecoupledNCDE backbone."""
+        nn.init.xavier_uniform_(self.Q)
+
+    def forward(self, x: torch.Tensor, time: torch.Tensor, mask: torch.Tensor):
+        """Forward pass of the DecoupledNCDE backbone.
+
+        Args:
+        ----
+            x (torch.Tensor): The input tensor (B, L, H).
+            time (torch.Tensor): The time tensor.
+            mask (torch.Tensor): The mask tensor.
+
+        Returns:
+        -------
+            torch.Tensor: The output tensor.
+
+        """
+        B, L, H = x.shape
+        M = self.nhead
+        H1 = self.headdim
+
+        k = self.K(x)  # (B, L, H)
+
+        if self.disable_weights:
+            weights = torch.ones(B, L, M, device=x.device)
+        else:
+            weights = torch.einsum("mh,blh->blm", self.Q, k) / sqrt(H)  # (B, L, M)
+
+        values = self.V(x).view(B, L, M, H1)
+
+        regtime = torch.arange(0, L, device=x.device, dtype=x.dtype).broadcast_to(
+            (B, L)
+        )
+
+        self.interp.fit(values, regtime, weights)
+
+        t_start = regtime.new_zeros(B)
+        t_end = maskmax(regtime, mask, dim=1)
+        h_start = self.h0(x[:, 0])
+        ivp = to.InitialValueProblem(h_start, t_start=t_start, t_end=t_end)
+        solution: to.Solution = self.solver.solve(ivp, term=self.term)
+
+        return solution.ys[:, -1]

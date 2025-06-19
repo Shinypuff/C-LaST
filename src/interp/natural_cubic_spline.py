@@ -35,15 +35,17 @@ def tdmasolver(a: Tensor, b: Tensor, c: Tensor, d: Tensor):
 
 
 def fit_cubic_spline_1d(t: Tensor, x: Tensor):
-    """Fit a 1-dimensional cubic spline.
+    """Fit a 1-dimensional cubic spline, returning its derivative coeffs (and constant!).
 
     This function is a vmap-able version of the torchcde interpolation:
     https://github.com/patrick-kidger/torchcde/blob/9ff6aba4738989dc5fe3aee86d45812c318f6231/torchcde/interpolation_cubic.py#L7
 
     Args:
-    ----
         t (Tensor): shape (L,) -- observation times;
         x (Tensor): shape (L,) -- observations.
+
+    Returns:
+        a (constant), b, 2c, 3d -- spline derivative coefficients.
 
 
     """
@@ -84,29 +86,27 @@ def fit_cubic_spline_1d(t: Tensor, x: Tensor):
         -six_path_diffs * time_diffs_reciprocal
         + 3 * (knot_derivatives[:-1] + knot_derivatives[1:])
     ) * time_diffs_reciprocal_squared
-    return torch.stack([a, b, two_c / 2, three_d / 3])
+    return torch.stack([a, b, two_c, three_d])
 
 
-def eval_cubic_spline_1d(coeffs: Tensor, t_obs: Tensor, t_eval: Tensor):
-    """Interpolate at t_eval.
+def eval_piecewise_poly_1d(coeffs: Tensor, t_obs: Tensor, t_eval: Tensor):
+    """Evaluate a piecewise polynomial.
 
     Args:
-    ----
-        coeffs: 4-tuple of Tensors of shape (4, L - 1, *)
+        coeffs: Coefficients tensord, of shape (D, L - 1, *)
         t_obs: Tensor of shape (L,)
         t_eval: single-item tensor.
 
     Returns:
-    -------
         A tensor of shape (*,), corresponding to the value of the spline
         at `t_eval`.
 
     """
     # (B, C), i.e. need to unsqueeze(1) to gather t_obs along L.
-    idx = torch.clamp(torch.searchsorted(t_obs, t_eval) - 1, 0, coeffs[0].size(0) - 1)
+    idx = torch.clamp(torch.searchsorted(t_obs, t_eval) - 1, 0, coeffs.size(1) - 1)
     selected_obs = t_obs.index_select(0, idx.unsqueeze(0))
     selected_coeffs = coeffs.index_select(1, idx.unsqueeze(0))[:, 0]
     rem = t_eval - selected_obs
-    rem_pow = rem ** torch.arange(1, 4, device=rem.device)  # (4,)
+    rem_pow = rem ** torch.arange(1, coeffs.size(0), device=rem.device)  # (4,)
     res = rem_pow @ selected_coeffs[1:] + selected_coeffs[0]
     return res

@@ -1,0 +1,13 @@
+defaults:
+ - backbone: dncde
+ - benchmark: churn
+ - _self_
+
+samples_per_epoch: 1024
+emb_dim: 16
+hidden_dim: 128
+learning_rate: 1e-3
+batch_size: 32
+patience: 5
+device: cuda:0
+experiment: test

@@ -1,0 +1,22 @@
+#! /bin/bash
+source credentials 
+source .env
+
+docker run \
+	-d \
+	--shm-size=8g \
+	--memory=200g \
+	--cpus=16 \
+	--user ${DOCKER_USER_ID}:${DOCKER_GROUP_ID} \
+	--name ${CONTAINER_NAME} \
+	--rm -it --init \
+	--gpus all \
+	--env-file ./.env \
+	-e MLFLOW_TRACKING_URI=${MLRUNS_DIR} \
+	--net=host \
+	--mount type=bind,src=/home/${USER}/${SRC},dst=/app \
+	--mount type=bind,src=/home/${USER}/.ssh,dst=/home/${DOCKER_NAME}/.ssh \
+	--mount type=bind,src=${DATA_HOST_DIR},dst=${DATA_DIR} \
+	--mount type=bind,src=${MLRUNS_HOST_DIR},dst=${MLRUNS_DIR} \
+	--gpus all \
+	${DOCKER_NAME} bash
