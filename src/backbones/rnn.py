@@ -7,7 +7,7 @@ from torch import nn
 
 from ..interp.wss_module import MultiHeadSmoothingSpline
 from ..mask_utils import masklast
-from ..nn.vf import MultiHeadVF
+from ..nn.vf import FeedForwardVF
 
 
 class RNN(nn.Module):

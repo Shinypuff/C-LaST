@@ -6,7 +6,7 @@ from torch import Tensor, nn
 from ..interp.wss_module import MultiHeadSmoothingSpline
 
 
-class MultiHeadVF(nn.Module):
+class FeedForwardVF(nn.Module):
     def __init__(self, hidden_dim: int, nhead: int, interp: MultiHeadSmoothingSpline):
         super().__init__()
         self.hidden_dim = hidden_dim
@@ -31,24 +31,25 @@ class MultiHeadVF(nn.Module):
         nn.init.xavier_uniform_(self.W_proj)
 
     def forward(self, t: Tensor, h: Tensor):
-        x: Tensor = self.interp(t)  # (B, N, H1)
-
-        B, H = h.shape
-        N = self.nhead
+        M = self.nhead
         H1 = self.headdim
-        h = h.view(B, N, H1).unsqueeze(-1)
 
-        # (N, H1, H1) @ (B, N, H1, 1) -> (B, N, H1, 1)
+        t = t.view(-1, M)
+        x: Tensor = self.interp(t)  # (B, M, H1)
+
+        h = h.view(-1, M, H1).unsqueeze(-1)
+
+        # (M, H1, H1) @ (B, M, H1, 1) -> (B, M, H1, 1)
         h = (self.W1 @ h + self.b1).relu()
         h = (self.W2 @ h + self.b2).relu()
 
-        # (N, H1 * H1, H1) @ (B, N, H1, 1) -> (B, N, H1 * H1, 1)
+        # (N, H1 * H1, H1) @ (B, M, H1, 1) -> (B, M, H1 * H1, 1)
         h = (self.W_proj @ h).tanh()
-        h = h.squeeze(-1).view(B, N, H1, H1)
+        h = h.squeeze(-1).view(-1, M, H1, H1)
 
         # (B, N, H1, H1) @ (B, N, H1, 1) -> (B, N, H1, 1)
         dh = h @ x.unsqueeze(-1)
 
-        # (B, N, H1) -> (B, H=N * H1)
-        dh = dh.squeeze(-1).view(B, H)
+        # (B, N, H1, 1) -> (B * N, H1)
+        dh = dh.squeeze(-1).view(-1, H1)
         return dh

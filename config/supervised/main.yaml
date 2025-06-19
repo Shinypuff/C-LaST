@@ -1,5 +1,5 @@
 defaults:
- - backbone: dncde
+ - backbone: gru
  - benchmark: churn
  - _self_
 

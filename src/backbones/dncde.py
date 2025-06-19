@@ -8,7 +8,7 @@ from torch import nn
 
 from ..interp.kernel_regression import KernelRegression
 from ..mask_utils import maskmax
-from ..nn.vf import MultiHeadVF
+from ..nn.vf import FeedForwardVF
 
 
 class DecoupledNCDE(nn.Module):
@@ -18,8 +18,6 @@ class DecoupledNCDE(nn.Module):
         self,
         hidden_dim: int,
         nhead: int,
-        past_window: int,
-        future_window: int,
         bandwidth: float = 1.0,
         temperature: float = 1.0,
         tol: float = 1e-3,
@@ -43,18 +41,16 @@ class DecoupledNCDE(nn.Module):
         self.disable_weights = disable_weights
 
         self.interp = KernelRegression(
-            past_window=past_window,
-            future_window=future_window,
             bandwidth=bandwidth,
             temperature=temperature,
         )
 
         self.Q = nn.Parameter(torch.empty(nhead, hidden_dim))
-        self.K = nn.Linear(hidden_dim, hidden_dim, bias=False)
-        self.V = nn.Linear(hidden_dim, hidden_dim, bias=False)
+        self.k_proj = nn.Linear(hidden_dim, hidden_dim, bias=False)
+        self.v_proj = nn.Linear(hidden_dim, hidden_dim, bias=False)
         self.h0 = nn.Linear(hidden_dim, hidden_dim)
         self.headdim = hidden_dim // nhead
-        self.f = MultiHeadVF(hidden_dim, nhead=nhead, interp=self.interp)
+        self.f = FeedForwardVF(hidden_dim, nhead=nhead, interp=self.interp)
         self.term = to.ODETerm(self.f)
         self.stepper = to.Dopri5(self.term)
         self.controller = to.IntegralController(self.tol, self.tol, term=self.term)
@@ -88,14 +84,16 @@ class DecoupledNCDE(nn.Module):
         M = self.nhead
         H1 = self.headdim
 
-        k = self.K(x)  # (B, L, H)
+        k = self.k_proj(x)  # (B, L, H)
 
         if self.disable_weights:
-            weights = torch.ones(B, L, M, device=x.device)
+            weights = torch.ones(B, M, L, device=x.device)
         else:
-            weights = torch.einsum("mh,blh->blm", self.Q, k) / sqrt(H)  # (B, L, M)
+            # Einsum is not the fastest way to do this.
+            # (but the most explicit, and we do this only once)
+            weights = torch.einsum("mh,blh->bml", self.Q, k) / sqrt(H)  # (B, M, L)
 
-        values = self.V(x).view(B, L, M, H1)
+        values = self.v_proj(x).view(B, L, M, H1).transpose(1, 2)  # (B, M, L, H1)
 
         regtime = torch.arange(0, L, device=x.device, dtype=x.dtype).broadcast_to(
             (B, L)
@@ -103,10 +101,11 @@ class DecoupledNCDE(nn.Module):
 
         self.interp.fit(values, regtime, weights)
 
-        t_start = regtime.new_zeros(B)
-        t_end = maskmax(regtime, mask, dim=1)
-        h_start = self.h0(x[:, 0])
+        t_start = regtime.new_zeros(B * M)
+        t_end = maskmax(regtime, mask, dim=1).unsqueeze(-1).expand(B, M).flatten()
+        h_start = self.h0(x[:, 0]).reshape(B * M, H1)
         ivp = to.InitialValueProblem(h_start, t_start=t_start, t_end=t_end)
         solution: to.Solution = self.solver.solve(ivp, term=self.term)
 
-        return solution.ys[:, -1]
+        embedding = solution.ys[:, -1].reshape(B, H)
+        return embedding
