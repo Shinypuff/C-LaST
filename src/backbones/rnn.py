@@ -1,13 +1,11 @@
 """The file with the RNN backbone."""
 
 from typing import Literal
+
 import torch
-import torchode as to
 from torch import nn
 
-from ..interp.wss_module import MultiHeadSmoothingSpline
 from ..mask_utils import masklast
-from ..nn.vf import FeedForwardVF
 
 
 class RNN(nn.Module):

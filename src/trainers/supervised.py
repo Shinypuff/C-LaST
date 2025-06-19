@@ -1,12 +1,12 @@
-from functools import partial
 import os
+from functools import partial
 from typing import Callable
 
-from loguru import logger
 import mlflow
 import numpy as np
 import torch
 from hydra.utils import instantiate
+from loguru import logger
 from omegaconf import DictConfig
 from sklearn.metrics import accuracy_score, r2_score, roc_auc_score
 from tensordict import TensorDict
@@ -15,7 +15,6 @@ from torch.utils.data import (
     DataLoader,
     RandomSampler,
     WeightedRandomSampler,
-    ConcatDataset,
 )
 from tqdm import tqdm
 
