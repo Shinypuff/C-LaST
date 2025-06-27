@@ -1,2 +1,3 @@
 _target_: src.backbones.rnn.RNN
 type: gru
+num_layers: 1

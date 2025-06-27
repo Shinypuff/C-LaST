@@ -1,4 +1,4 @@
-_target_: src.backbones.dncde.DecoupledNCDE
+_target_: src.backbones.ncdeformer.NCDEFormer
 nhead: 8
 bandwidth: 64
 temperature: 1.0

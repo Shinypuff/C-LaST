@@ -5,13 +5,19 @@ from typing import Literal
 import torch
 from torch import nn
 
-from ..mask_utils import masklast
+from ..utils.mask_utils import masklast
 
 
 class RNN(nn.Module):
     """The RNN backbone."""
 
-    def __init__(self, hidden_dim: int, type: Literal["rnn", "lstm", "gru"]):
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_dim: int,
+        type: Literal["rnn", "lstm", "gru"],
+        num_layers: int,
+    ):
         """Initialize the RNN backbone.
 
         Args:
@@ -20,6 +26,7 @@ class RNN(nn.Module):
 
         """
         super().__init__()
+        self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         match type:
             case "rnn":
@@ -31,7 +38,9 @@ class RNN(nn.Module):
             case a:
                 raise ValueError(f"Unknown RNN type: {a}")
 
-        self.rnn = rnn_cls(hidden_dim, hidden_dim, batch_first=True)
+        self.rnn = rnn_cls(
+            input_dim, hidden_dim, batch_first=True, num_layers=num_layers
+        )
 
     def forward(self, x: torch.Tensor, time: torch.Tensor, mask: torch.Tensor):
         """Forward pass of the RNN backbone.

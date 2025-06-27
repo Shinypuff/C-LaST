@@ -3,11 +3,11 @@
 import torch
 from torch import Tensor, nn
 
-from ..interp.wss_module import MultiHeadSmoothingSpline
+from ..interp.base import BaseInterp
 
 
-class FeedForwardVF(nn.Module):
-    def __init__(self, hidden_dim: int, nhead: int, interp: MultiHeadSmoothingSpline):
+class MultiHeadFeedForwardVF(nn.Module):
+    def __init__(self, input_dim: int, hidden_dim: int, nhead: int, interp: BaseInterp):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.nhead = nhead
@@ -35,7 +35,7 @@ class FeedForwardVF(nn.Module):
         H1 = self.headdim
 
         t = t.view(-1, M)
-        x: Tensor = self.interp(t)  # (B, M, H1)
+        x: Tensor = self.interp(t).view(-1, M, H1)
 
         h = h.view(-1, M, H1).unsqueeze(-1)
 
@@ -53,3 +53,23 @@ class FeedForwardVF(nn.Module):
         # (B, N, H1, 1) -> (B * N, H1)
         dh = dh.squeeze(-1).view(-1, H1)
         return dh
+
+
+class FeedForwardVF(nn.Module):
+    def __init__(self, input_dim: int, hidden_dim: int, interp: BaseInterp):
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.interp = interp
+        self.net = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim * 4),
+            nn.ReLU(),
+            nn.Linear(hidden_dim * 4, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim * input_dim),
+            nn.Tanh(),
+        )
+
+    def forward(self, t: Tensor, h: Tensor):
+        x: Tensor = self.interp(t)
+        control_matrix = self.net(h).view(-1, self.hidden_dim, self.input_dim)
+        return (control_matrix @ x.unsqueeze(-1)).squeeze(-1)

@@ -1,0 +1,4 @@
+n_slices: 8
+window_size: 32
+neg_samples: 5
+margin: 0.5

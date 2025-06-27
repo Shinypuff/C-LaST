@@ -1,9 +1,9 @@
 import torch
 from tensordict import TensorDict
-from torch import nn
+from torch import Tensor, nn
 
 
-class Encoder(nn.Module):
+class EvSEncoder(nn.Module):
     def __init__(
         self,
         cat_feats: dict[str, int],
@@ -18,6 +18,7 @@ class Encoder(nn.Module):
         # Sort for deterministic hidden order!
         self.cat_feats = sorted(cat_feats.keys())
         self.num_feats = sorted(num_feats)
+        self.feats = self.cat_feats + self.num_feats
 
         for f in cat_feats:
             self.cat_enc[f] = nn.Embedding(cat_feats[f] + 1, emb_dim, padding_idx=0)
@@ -31,8 +32,9 @@ class Encoder(nn.Module):
                 elementwise_affine=False, bias=False, normalized_shape=hidden_dim
             ),
         )
+        self.input_dim = hidden_dim
 
-    def forward(self, x: TensorDict) -> TensorDict:
+    def forward(self, x: TensorDict) -> Tensor:
         cat_emb = [self.cat_enc[f](x[f]) for f in self.cat_feats]
         num_emb = [
             self.num_enc[f](x[f].unsqueeze(-1).to(torch.float32))
@@ -41,4 +43,16 @@ class Encoder(nn.Module):
 
         x = torch.cat(cat_emb + num_emb, dim=-1)
         x = self.proj(x)
+        return x
+
+
+class TSEncoder(nn.Module):
+    def __init__(self, num_feats: list[str]):
+        super().__init__()
+
+        self.num_feats = sorted(num_feats)
+        self.input_dim = len(num_feats)
+
+    def forward(self, x: TensorDict):
+        x = torch.cat([x[f].unsqueeze(-1) for f in self.num_feats], dim=-1)
         return x
