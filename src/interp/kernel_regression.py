@@ -36,15 +36,21 @@ class KernelRegression(BaseInterp):
         # Time differences (B, M, L)
         time_diff = t_eval.unsqueeze(-1) - self.t_obs.unsqueeze(1)
 
-        # Weights
+        # Weights (B, M, L)
         logit_weights = (
             self.weights / self.temperature - time_diff.abs() / self.bandwidth
         )
         weights = torch.softmax(logit_weights, dim=-1)
 
-        # Softmax derivative (B, M, L)
-        d_weights = weights * (1 - weights) * (-torch.sign(time_diff) / self.bandwidth)
+        L = weights.shape[-1]
+        softmax_jacobian = weights.unsqueeze(-1) * (
+            torch.eye(L, device=weights.device, dtype=weights.dtype)
+            - weights.unsqueeze(-2)
+        )  # (B, M, L, L)
+        kernel_deriv = torch.linalg.vecdot(
+            softmax_jacobian, -torch.sign(time_diff.unsqueeze(-2)) / self.bandwidth
+        ).squeeze(-1)  # (B, M, L)
 
         # Apply the weights to the observations
-        dx = torch.linalg.vecdot(self.x_obs_t, d_weights.unsqueeze(2))  # (B, M, H)
+        dx = torch.linalg.vecdot(self.x_obs_t, kernel_deriv.unsqueeze(-2))  # (B, M, H)
         return dx

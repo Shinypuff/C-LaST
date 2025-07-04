@@ -1,0 +1,8 @@
+# @package _global_
+
+datasource: gender
+balance: false
+criterion: binary
+cat_feats: {MCC: 185}
+num_feats: [amount, time]
+sequence_type: evs

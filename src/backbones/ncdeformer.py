@@ -82,7 +82,8 @@ class NCDEFormer(nn.Module):
             torch.Tensor: The output tensor.
 
         """
-        B, L, H = x.shape
+        B, L = x.shape[:-1]
+        H = self.hidden_dim
         M = self.nhead
         H1 = self.headdim
 
@@ -97,9 +98,8 @@ class NCDEFormer(nn.Module):
 
         values = self.v_proj(x).view(B, L, M, H1).transpose(1, 2)  # (B, M, L, H1)
 
-        regtime = torch.arange(0, L, device=x.device, dtype=x.dtype).broadcast_to(
-            (B, L)
-        )
+        regtime = torch.arange(0, L, device=x.device, dtype=x.dtype)
+        regtime = regtime.broadcast_to((B, L))
 
         self.interp.fit(regtime, values, weights)
 

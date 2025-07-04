@@ -13,9 +13,10 @@ from ...utils.collate_td import collate_td
 
 
 class ColesDataset(IterableDataset):
-    def __init__(self, datasource: str, window_size: int, n_slices: int, seed: int):
-        self.datasource = datasource
-        self.data = pl.read_parquet(datasource).to_numpy(structured=True)
+    def __init__(
+        self, dataframe: pl.DataFrame, window_size: int, n_slices: int, seed: int
+    ):
+        self.data = dataframe.to_numpy(structured=True)
         self.window_size = window_size
         self.n_slices = n_slices
         self.rng = np.random.default_rng(seed=seed)
@@ -62,15 +63,16 @@ class ColesDataModule(LightningDataModule):
         self.data_dir = datasource
         self.batch_size = batch_size
         self.collate_fn = partial(collate_td, seq_feats=seq_feats)
-        fpath: str = (
-            os.environ["DATA_DIR"] + "/preprocessed/" + datasource + "_{}.parquet"
+
+        data_path = os.path.join(
+            os.environ["DATA_DIR"], "preprocessed", datasource + ".parquet"
         )
-
+        df = pl.read_parquet(data_path)
+        splits = df.partition_by("split", as_dict=True, include_key=False)
         ds_args = dict(n_slices=n_slices, window_size=window_size, seed=seed)
-
-        self.train_dataset = ColesDataset(fpath.format("train"), **ds_args)
-        self.val_dataset = ColesDataset(fpath.format("val"), **ds_args)
-        self.test_dataset = ColesDataset(fpath.format("test"), **ds_args)
+        self.train_dataset = ColesDataset(splits[("train",)], **ds_args)
+        self.val_dataset = ColesDataset(splits[("val",)], **ds_args)
+        self.test_dataset = ColesDataset(splits[("test",)], **ds_args)
 
     def train_dataloader(self):
         return DataLoader(

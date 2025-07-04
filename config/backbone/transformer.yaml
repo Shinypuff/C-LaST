@@ -1,0 +1,4 @@
+_target_: src.backbones.transformer.Transformer
+num_heads: 8
+num_layers: 6
+max_seq_len: 4096

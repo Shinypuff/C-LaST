@@ -7,7 +7,7 @@ from ..interp.base import BaseInterp
 
 
 class MultiHeadFeedForwardVF(nn.Module):
-    def __init__(self, input_dim: int, hidden_dim: int, nhead: int, interp: BaseInterp):
+    def __init__(self, hidden_dim: int, nhead: int, interp: BaseInterp):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.nhead = nhead
@@ -58,6 +58,7 @@ class MultiHeadFeedForwardVF(nn.Module):
 class FeedForwardVF(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int, interp: BaseInterp):
         super().__init__()
+        self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.interp = interp
         self.net = nn.Sequential(

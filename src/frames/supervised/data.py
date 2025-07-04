@@ -12,8 +12,8 @@ from ...utils.collate_td import collate_td
 
 
 class Dataset(Dataset_):
-    def __init__(self, datasource: str):
-        self.data = pl.read_parquet(datasource).to_numpy(structured=True)
+    def __init__(self, dataframe: pl.DataFrame):
+        self.data = dataframe.to_numpy(structured=True)
 
     def __len__(self):
         return len(self.data)
@@ -37,14 +37,20 @@ class DataModule(LightningDataModule):
         self.batch_size = batch_size
         self.samples_per_epoch = samples_per_epoch
 
-        fpath: str = (
-            os.environ["DATA_DIR"] + "/preprocessed/" + datasource + "_{}.parquet"
+        if "time" not in seq_feats:
+            seq_feats = seq_feats + ["time"]
+        self.collate_fn = partial(collate_td, seq_feats=seq_feats)
+
+        data_path = os.path.join(
+            os.environ["DATA_DIR"], "preprocessed", datasource + ".parquet"
         )
 
-        self.collate_fn = partial(collate_td, seq_feats=seq_feats)
-        self.train_dataset = Dataset(fpath.format("train"))
-        self.val_dataset = Dataset(fpath.format("val"))
-        self.test_dataset = Dataset(fpath.format("test"))
+        df = pl.read_parquet(data_path)
+        splits = df.partition_by("split", as_dict=True, include_key=False)
+
+        self.train_dataset = Dataset(splits[("train",)])
+        self.val_dataset = Dataset(splits[("val",)])
+        self.test_dataset = Dataset(splits[("test",)])
 
     def train_dataloader(self):
         if self.balance:

@@ -1,0 +1,9 @@
+# @package _global_
+
+datasource: ethanol_concentration
+balance: false
+criterion: multiclass
+num_classes: 4
+cat_feats: {}
+num_feats: [x0, x1, x2]
+sequence_type: ts

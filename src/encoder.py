@@ -51,8 +51,9 @@ class TSEncoder(nn.Module):
         super().__init__()
 
         self.num_feats = sorted(num_feats)
+        self.feats = self.num_feats
         self.input_dim = len(num_feats)
 
     def forward(self, x: TensorDict):
         x = torch.cat([x[f].unsqueeze(-1) for f in self.num_feats], dim=-1)
-        return x
+        return x.to(torch.float32)

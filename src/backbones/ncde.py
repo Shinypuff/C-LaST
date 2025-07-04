@@ -9,10 +9,11 @@ from ..utils.mask_utils import masklast
 
 # TODO: the coeffs can be precomputed if this takes too much time.
 class NeuralCDE(nn.Module):
-    def __init__(self, input_dim: int, hidden_dim: int, tol: float):
+    def __init__(self, input_dim: int, hidden_dim: int, tol: float, reduction="last"):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.tol = tol
+        self.reduction = reduction
 
         self.interp = NaturalCubicSpline()
         self.h0_proj = nn.Linear(input_dim, hidden_dim)
@@ -52,8 +53,17 @@ class NeuralCDE(nn.Module):
         t_start = regtime.new_zeros(B)
         t_end = masklast(regtime, mask, dim=1)
 
-        ivp = to.InitialValueProblem(h0, t_start=t_start, t_end=t_end)
-        solution: to.Solution = self.solver.solve(ivp, term=self.term)
+        match self.reduction:
+            case "last":
+                ivp = to.InitialValueProblem(h0, t_start=t_start, t_end=t_end)
+                solution: to.Solution = self.solver.solve(ivp, term=self.term)
 
-        embedding = solution.ys[:, -1]
+                embedding = solution.ys[:, -1]
+            case "event":
+                ivp = to.InitialValueProblem(
+                    h0, t_start=t_start, t_end=t_end, t_eval=regtime
+                )
+                solution: to.Solution = self.solver.solve(ivp, term=self.term)
+
+                embedding = solution.ys
         return embedding

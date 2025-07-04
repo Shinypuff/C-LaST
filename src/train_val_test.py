@@ -1,7 +1,5 @@
 import mlflow
 import torch
-from funcy import omit
-from hydra.core.hydra_config import HydraConfig
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import (
@@ -21,8 +19,6 @@ def train_val_test(
     cfg: DictConfig,
     monitor: str,
 ):
-    benchmark_name = HydraConfig.get().runtime.choices["benchmark"]
-    mlflow.set_experiment("_".join([cfg["experiment"], benchmark_name]))
     with mlflow.start_run() as run:
         ckpt_callback = ModelCheckpoint(
             monitor=monitor, mode="max", filename="checkpoint"
@@ -42,6 +38,7 @@ def train_val_test(
 
         cfg_dict = OmegaConf.to_container(cfg)
         mlflow.log_params(cfg_dict)
+        mlflow.log_dict(cfg_dict, "config.yaml")
 
         smry = summary(module)
         mlflow.log_text(str(smry), "summary.txt")
