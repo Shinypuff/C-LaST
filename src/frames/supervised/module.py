@@ -1,4 +1,3 @@
-from itertools import chain
 from typing import Literal
 
 import numpy as np
@@ -54,9 +53,6 @@ class SupervisedModule(LightningModule):
         self.encoder = encoder
         self.backbone = backbone
 
-        for param in chain(self.encoder.parameters(), self.backbone.parameters()):
-            param.requires_grad = False
-
         self.learning_rate = learning_rate
         self.head = head
         self.activation = activation
@@ -64,14 +60,6 @@ class SupervisedModule(LightningModule):
 
         self.val_metric = metric.clone()
         self.test_metric = metric.clone()
-
-    def train(self, mode: bool = True):
-        for module in self.children():
-            module.train(mode)
-
-        self.encoder.train(False)
-        self.backbone.train(False)
-        return self
 
     def forward(self, batch: TensorDict) -> torch.Tensor:
         time = batch["time"].to(torch.float32)

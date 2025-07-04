@@ -3,7 +3,7 @@ import torchode as to
 from torch import nn
 
 from ..interp.nat_cub_spline import NaturalCubicSpline
-from ..nn.vf import MultiHeadFeedForwardVF
+from ..nn.vf import MultiHeadVF
 from ..utils.mask_utils import masklast
 
 
@@ -31,7 +31,7 @@ class MultiHeadNeuralCDE(nn.Module):
         else:
             self.x_proj = nn.Identity()
 
-        self.f = MultiHeadFeedForwardVF(hidden_dim, nhead=nhead, interp=self.interp)
+        self.f = MultiHeadVF(hidden_dim, nhead=nhead, interp=self.interp)
         self.term = to.ODETerm(self.f)
         self.stepper = to.Dopri5(self.term)
         self.controller = to.IntegralController(self.tol, self.tol, term=self.term)

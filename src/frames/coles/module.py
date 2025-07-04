@@ -49,7 +49,6 @@ class ColesModule(LightningModule):
         )
         return loss
 
-    @torch.no_grad()
     def validation_step(self, batch: TensorDict) -> tuple[np.ndarray, np.ndarray]:
         user_tags = batch["target"]
         h = self(batch)
@@ -66,7 +65,6 @@ class ColesModule(LightningModule):
         )
         return loss
 
-    @torch.no_grad()
     def test_step(self, batch: TensorDict) -> tuple[np.ndarray, np.ndarray]:
         user_tags = batch["target"]
         h = self(batch)

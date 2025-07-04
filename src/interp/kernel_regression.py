@@ -42,14 +42,11 @@ class KernelRegression(BaseInterp):
         )
         weights = torch.softmax(logit_weights, dim=-1)
 
-        L = weights.shape[-1]
-        softmax_jacobian = weights.unsqueeze(-1) * (
-            torch.eye(L, device=weights.device, dtype=weights.dtype)
-            - weights.unsqueeze(-2)
-        )  # (B, M, L, L)
-        kernel_deriv = torch.linalg.vecdot(
-            softmax_jacobian, -torch.sign(time_diff.unsqueeze(-2)) / self.bandwidth
-        ).squeeze(-1)  # (B, M, L)
+        # Compute kernel derivative more efficiently
+        sign_time_diff = -torch.sign(time_diff) / self.bandwidth  # (B, M, L)
+        # Using the fact that softmax Jacobian applied to v is: w * v - w * (w @ v)
+        weighted_sign = (weights * sign_time_diff).sum(dim=-1, keepdim=True)  # (w @ v)
+        kernel_deriv = weights * (sign_time_diff - weighted_sign)  # w * (v - (w @ v))
 
         # Apply the weights to the observations
         dx = torch.linalg.vecdot(self.x_obs_t, kernel_deriv.unsqueeze(-2))  # (B, M, H)
