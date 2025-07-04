@@ -43,14 +43,14 @@ class MultiHeadFeedForwardVF(nn.Module):
         h = (self.W1 @ h + self.b1).relu()
         h = (self.W2 @ h + self.b2).relu()
 
-        # (N, H1 * H1, H1) @ (B, M, H1, 1) -> (B, M, H1 * H1, 1)
+        # (M, H1 * H1, H1) @ (B, M, H1, 1) -> (B, M, H1 * H1, 1)
         h = (self.W_proj @ h).tanh()
         h = h.squeeze(-1).view(-1, M, H1, H1)
 
-        # (B, N, H1, H1) @ (B, N, H1, 1) -> (B, N, H1, 1)
+        # (B, M, H1, H1) @ (B, M, H1, 1) -> (B, M, H1, 1)
         dh = h @ x.unsqueeze(-1)
 
-        # (B, N, H1, 1) -> (B * N, H1)
+        # (B, M, H1, 1) -> (B * M, H1)
         dh = dh.squeeze(-1).view(-1, H1)
         return dh
 
