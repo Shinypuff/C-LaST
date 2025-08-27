@@ -1,5 +1,8 @@
+import gc
+
 import hydra
 import mlflow
+import torch
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig
 
@@ -12,7 +15,7 @@ def main(cfg: DictConfig):
     hydra_choices = HydraConfig.get().runtime.choices
     paradigm = hydra_choices["paradigm"]
     benchmark = hydra_choices["benchmark"]
-    mlflow.set_experiment(f"{cfg['experiment']}_{benchmark}_{paradigm}")
+    mlflow.set_experiment(f"{benchmark}_{paradigm}")
     match paradigm:
         case "coles":
             coles(cfg)
@@ -20,6 +23,9 @@ def main(cfg: DictConfig):
             supervised(cfg)
         case _:
             raise ValueError(f"Unknown paradigm: {paradigm}")
+
+    torch.cuda.empty_cache()
+    gc.collect()
 
 
 if __name__ == "__main__":

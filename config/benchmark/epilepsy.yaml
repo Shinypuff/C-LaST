@@ -1,9 +1,9 @@
 # @package _global_
 
-datasource: eigen_worms
+datasource: epilepsy
 balance: false
 criterion: multiclass
-num_classes: 5
+num_classes: 4
 cat_feats: {}
-num_feats: [x0, x1, x2, x3, x4, x5, time]
+num_feats: [x0, x1, x2]
 sequence_type: ts

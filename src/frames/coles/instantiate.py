@@ -20,8 +20,8 @@ def from_config(cfg: DictConfig) -> tuple[ColesModule, ColesDataModule]:
     )
 
     module = ColesModule(
-        neg_samples=cfg["paradigm"]["neg_samples"],
-        margin=cfg["paradigm"]["margin"],
+        neg_samples=cfg["neg_samples"],
+        margin=cfg["margin"],
         encoder=encoder,
         backbone=backbone,
         learning_rate=cfg["learning_rate"],
@@ -29,8 +29,8 @@ def from_config(cfg: DictConfig) -> tuple[ColesModule, ColesDataModule]:
 
     datamodule = ColesDataModule(
         datasource=cfg["datasource"],
-        window_size=cfg["paradigm"]["window_size"],
-        n_slices=cfg["paradigm"]["n_slices"],
+        window_size=cfg["window_size"],
+        n_slices=cfg["n_slices"],
         batch_size=cfg["batch_size"],
         seq_feats=encoder.feats,
         seed=cfg["seed"],

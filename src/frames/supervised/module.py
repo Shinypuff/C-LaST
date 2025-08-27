@@ -11,11 +11,7 @@ from ...encoder import EvSEncoder, TSEncoder
 from ...nn.losses import RelaxedBCELogitLoss, RelaxedCrossEntropyLoss
 
 
-def choose_criterion(
-    criterion_name: Literal["binary", "multiclass", "regression"],
-    hidden_dim,
-    num_classes,
-):
+def choose_criterion(criterion_name: str, hidden_dim, num_classes, num_labels):
     match criterion_name:
         case "binary":
             loss_fn = RelaxedBCELogitLoss()
@@ -27,6 +23,11 @@ def choose_criterion(
             metric_fn = Accuracy("multiclass", num_classes=num_classes)
             head = nn.Linear(hidden_dim, num_classes)
             activation = nn.Softmax(dim=1)
+        case "multibinary":
+            loss_fn = RelaxedBCELogitLoss()
+            metric_fn = AUROC("multilabel", num_labels=num_labels)
+            head = nn.Linear(hidden_dim, num_labels)
+            activation = nn.Sigmoid()
         case "regression":
             loss_fn = nn.MSELoss()
             metric_fn = R2Score()

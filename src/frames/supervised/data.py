@@ -1,4 +1,5 @@
 import os
+from copy import deepcopy
 from functools import partial
 
 import numpy as np
@@ -19,7 +20,7 @@ class Dataset(Dataset_):
         return len(self.data)
 
     def __getitem__(self, index):
-        return from_struct_array(self.data[index].copy(), batch_size=())
+        return from_struct_array(deepcopy(self.data[index]), batch_size=())
 
 
 class DataModule(LightningDataModule):
@@ -28,14 +29,12 @@ class DataModule(LightningDataModule):
         datasource: str,
         batch_size: int,
         balance: bool,
-        samples_per_epoch: int,
         seq_feats: list[str],
     ):
         super().__init__()
         self.balance = balance
         self.datasource = datasource
         self.batch_size = batch_size
-        self.samples_per_epoch = samples_per_epoch
 
         if "time" not in seq_feats:
             seq_feats = seq_feats + ["time"]
@@ -54,24 +53,25 @@ class DataModule(LightningDataModule):
 
     def train_dataloader(self):
         if self.balance:
-            targets = np.array([el["target"].item() for el in self.train_dataset])
+            targets = np.array([el["target"].tolist() for el in self.train_dataset])
+
+            if targets.ndim == 2:  # Multilabel: convert to multiclass
+                targets = (np.argmax(targets, axis=1) + 1) * targets.any(axis=1)
+
             _, counts = np.unique(targets, return_counts=True)
             sampler = WeightedRandomSampler(
                 weights=1 / counts[targets.astype(np.int32)],
-                num_samples=self.samples_per_epoch,
+                num_samples=len(targets),
             )
         else:
-            sampler = RandomSampler(
-                self.train_dataset,
-                replacement=self.samples_per_epoch > len(self.train_dataset),
-                num_samples=self.samples_per_epoch,
-            )
+            sampler = RandomSampler(self.train_dataset)
 
         return DataLoader(
             self.train_dataset,
             sampler=sampler,
             batch_size=self.batch_size,
             collate_fn=self.collate_fn,
+            num_workers=16,
         )
 
     def val_dataloader(self):
@@ -80,6 +80,7 @@ class DataModule(LightningDataModule):
             shuffle=False,
             batch_size=self.batch_size,
             collate_fn=self.collate_fn,
+            num_workers=16,
         )
 
     def test_dataloader(self):
@@ -88,4 +89,5 @@ class DataModule(LightningDataModule):
             shuffle=False,
             batch_size=self.batch_size,
             collate_fn=self.collate_fn,
+            num_workers=16,
         )

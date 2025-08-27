@@ -6,11 +6,11 @@ defaults:
 
 trainer_args:
   max_epochs: -1
+  devices: 1
 
 emb_dim: 16
 hidden_dim: 128
 learning_rate: 1e-3
 batch_size: 32
 patience: 10
-experiment: mtsc
 seed: 0

@@ -12,6 +12,8 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import MLFlowLogger
 from torchinfo import summary
 
+from .utils.logging import cfg2hparams
+
 
 def train_val_test(
     module: LightningModule,
@@ -19,33 +21,39 @@ def train_val_test(
     cfg: DictConfig,
     monitor: str,
 ):
+    torch.set_float32_matmul_precision("medium")
     with mlflow.start_run() as run:
-        ckpt_callback = ModelCheckpoint(
-            monitor=monitor, mode="max", filename="checkpoint"
-        )
-        es_callback = EarlyStopping(
-            monitor=monitor, mode="max", patience=cfg["patience"]
-        )
-
-        trainer = Trainer(
-            devices=1,
-            callbacks=[es_callback, ckpt_callback],
-            logger=MLFlowLogger(run_id=run.info.run_id),
-            **cfg.get("trainer_args", {}),
-        )
-
-        logger.info(f"Run ID: {run.info.run_id}")
-
-        cfg_dict = OmegaConf.to_container(cfg)
-        mlflow.log_params(cfg_dict)
-        mlflow.log_dict(cfg_dict, "config.yaml")
-
-        smry = summary(module)
-        mlflow.log_text(str(smry), "summary.txt")
-
-        seed_everything(cfg["seed"])
         try:
+            ckpt_callback = ModelCheckpoint(
+                monitor=monitor, mode="max", filename="checkpoint"
+            )
+            es_callback = EarlyStopping(
+                monitor=monitor, mode="max", patience=cfg["patience"]
+            )
+
+            trainer = Trainer(
+                callbacks=[es_callback, ckpt_callback],
+                logger=MLFlowLogger(run_id=run.info.run_id),
+                **cfg.get("trainer_args", {}),
+            )
+
+            logger.info(f"Run ID: {run.info.run_id}")
+
+            dict_cfg = OmegaConf.to_container(cfg, resolve=True)
+            mlflow.log_params(cfg2hparams(dict_cfg))
+            mlflow.log_dict(dict_cfg, "config.yaml")
+
+            smry = summary(module)
+            mlflow.log_text(str(smry), "summary.txt")
+
+            seed_everything(cfg["seed"])
             trainer.fit(module, datamodule)
+
+            mlflow.log_artifact(ckpt_callback.best_model_path)
+            module.load_state_dict(
+                torch.load(ckpt_callback.best_model_path)["state_dict"]
+            )
+            trainer.test(module, datamodule)
         except KeyboardInterrupt:
             mlflow.end_run("KILLED")
             raise
@@ -55,8 +63,4 @@ def train_val_test(
             mlflow.end_run("FAILED")
             raise
 
-        mlflow.log_artifact(ckpt_callback.best_model_path)
-        module.load_state_dict(torch.load(ckpt_callback.best_model_path)["state_dict"])
-
-        trainer.test(module, datamodule)
     return run.info.run_id

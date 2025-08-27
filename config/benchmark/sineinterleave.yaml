@@ -1,8 +1,0 @@
-# @package _global_
-
-datasource: sineinterleave
-balance: false
-criterion: regression
-cat_feats: {}
-num_feats: [value, time]
-sequence_type: ts

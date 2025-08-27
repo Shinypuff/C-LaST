@@ -19,8 +19,9 @@ class NCDEFormer(nn.Module):
         input_dim: int,
         hidden_dim: int,
         nhead: int,
-        bandwidth: float = 1.0,
+        bandwidth: float = 16.0,
         temperature: float = 1.0,
+        window_bandwidth_multiplier: float = 4.0,
         tol: float = 1e-3,
         disable_weights=False,
     ):
@@ -45,6 +46,7 @@ class NCDEFormer(nn.Module):
         self.interp = KernelRegression(
             bandwidth=bandwidth,
             temperature=temperature,
+            window_bandwidth_multiplier=window_bandwidth_multiplier,
         )
 
         self.Q = nn.Parameter(torch.empty(nhead, hidden_dim))

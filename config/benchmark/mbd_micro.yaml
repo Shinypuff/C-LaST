@@ -2,16 +2,16 @@
 
 datasource: mbd_micro
 balance: true
-criterion: multiclass
-num_classes: 4
+criterion: multibinary
+num_labels: 4
 cat_feats: 
     event_type: 52
     event_subtype: 56
-    src_type11: 36
-    src_type12: 125
-    dst_type11: 42
-    dst_type12: 157
+    src_type11: 32
+    src_type12: 108
+    dst_type11: 40
+    dst_type12: 150
     src_type22: 82
     src_type32: 81
-num_feats: [amount]
+num_feats: [amount, time]
 sequence_type: evs

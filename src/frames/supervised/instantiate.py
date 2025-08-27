@@ -27,7 +27,7 @@ def from_config(cfg: DictConfig):
     )
 
     loss_fn, metric_fn, head, activation = choose_criterion(
-        cfg["criterion"], hidden_dim, cfg.get("num_classes")
+        cfg["criterion"], hidden_dim, cfg.get("num_classes"), cfg.get("num_labels")
     )
 
     module = SupervisedModule(
@@ -44,7 +44,6 @@ def from_config(cfg: DictConfig):
         datasource=cfg["datasource"],
         batch_size=cfg["batch_size"],
         balance=cfg["balance"],
-        samples_per_epoch=cfg["paradigm"]["samples_per_epoch"],
         seq_feats=encoder.feats,
     )
 

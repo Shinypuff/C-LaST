@@ -3,6 +3,6 @@
 datasource: gender
 balance: false
 criterion: binary
-cat_feats: {MCC: 185}
+cat_feats: {mcc_code: 184}
 num_feats: [amount, time]
 sequence_type: evs
