@@ -6,8 +6,8 @@ import torch
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig
 
-from src.frames.coles.run import coles
-from src.frames.supervised.run import supervised
+from src.instantiate import from_config
+from src.train_val_test import train_val_test
 
 
 @hydra.main(config_path="config", config_name="main")
@@ -16,13 +16,9 @@ def main(cfg: DictConfig):
     paradigm = hydra_choices["paradigm"]
     benchmark = hydra_choices["benchmark"]
     mlflow.set_experiment(f"{benchmark}_{paradigm}")
-    match paradigm:
-        case "coles":
-            coles(cfg)
-        case "supervised":
-            supervised(cfg)
-        case _:
-            raise ValueError(f"Unknown paradigm: {paradigm}")
+
+    module, datamodule = from_config(cfg)
+    train_val_test(module, datamodule, cfg, module.monitor)
 
     torch.cuda.empty_cache()
     gc.collect()

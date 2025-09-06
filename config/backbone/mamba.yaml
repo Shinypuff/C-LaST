@@ -1,3 +1,0 @@
-_target_: src.backbones.mamba.Mamba
-n_layer: 24
-nhead: 8

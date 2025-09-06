@@ -1,2 +1,0 @@
-_target_: src.backbones.ncde.NeuralCDE
-tol: 1e-3

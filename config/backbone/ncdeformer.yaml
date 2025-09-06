@@ -1,7 +1,0 @@
-_target_: src.backbones.ncdeformer.NCDEFormer
-nhead: 8
-bandwidth: 16
-temperature: 1.0
-window_bandwidth_multiplier: 4
-tol: 1e-3
-disable_weights: False

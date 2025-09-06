@@ -1,9 +1,0 @@
-# @package _global_
-
-datasource: u_wave_gesture_library
-balance: false
-criterion: multiclass
-num_classes: 8
-cat_feats: {}
-num_feats: [x0, x1, x2]
-sequence_type: ts

@@ -1,8 +1,0 @@
-# @package _global_
-
-datasource: churn
-balance: true
-criterion: binary
-cat_feats: {MCC: 288}
-num_feats: [amount, time]
-sequence_type: evs

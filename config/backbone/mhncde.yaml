@@ -1,3 +1,0 @@
-_target_: src.backbones.mhncde.MultiHeadNeuralCDE
-tol: 1e-3
-nhead: 8

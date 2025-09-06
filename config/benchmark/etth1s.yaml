@@ -1,0 +1,7 @@
+_target_: src.data.rolling_dm.RollingDataModule
+datasource: /mnt/data/k2vae/ETT-small/ETTh1.csv
+context: 24
+horizon: 24
+tgt_cols: [OT]
+ctx_cols: [HUFL, HUFR, HPRO, LUFL, LUFR, LPRO]
+time_col: date
