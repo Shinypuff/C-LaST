@@ -15,8 +15,7 @@ docker run \
 	-e MLFLOW_TRACKING_URI=${MLRUNS_DIR} \
 	--net=host \
 	--mount type=bind,src=/home/${USER}/${SRC},dst=/app \
-	--mount type=bind,src=/home/${USER}/.ssh,dst=/home/${DOCKER_NAME}/.ssh \
 	--mount type=bind,src=${DATA_HOST_DIR},dst=${DATA_DIR} \
 	--mount type=bind,src=${MLRUNS_HOST_DIR},dst=${MLRUNS_DIR} \
 	--gpus all \
-	${DOCKER_NAME} bash
+	${CONTAINER_NAME} bash

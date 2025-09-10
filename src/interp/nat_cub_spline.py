@@ -3,8 +3,6 @@
 import torch
 from torch import Tensor, nn
 
-from .base import BaseInterp
-
 
 def tdmasolver(a: Tensor, b: Tensor, c: Tensor, d: Tensor):
     """Solve Tri-Diagonal system of equations.
@@ -114,7 +112,7 @@ def eval_cubic_spline_1d(coeffs: Tensor, t_obs: Tensor, t_eval: Tensor):
     return res
 
 
-class NaturalCubicSpline(BaseInterp):
+class NaturalCubicSpline(nn.Module):
     """Natural cubic spline interpolator."""
 
     def fit(self, t: Tensor, x: Tensor):

@@ -10,15 +10,39 @@ from .vf import MLPVF
 
 
 class TrajectoryFlowMatching(BaseForecasting):
+    """TrajectoryFlowMatching is a forecasting model based on flow matching techniques.
+
+    This class implements a trajectory-based flow matching approach for time series forecasting.
+    It uses a neural ODE solver to model the dynamics of the time series and predict future values.
+    The model is trained to minimize the mean squared error between predicted and actual trajectories.
+
+    Attributes:
+        history (int): The number of historical time steps to consider for prediction.
+        flow (MLPVF): The neural network modeling the vector field for the ODE.
+        solver (to.AutoDiffAdjoint): The ODE solver with adjoint sensitivity analysis.
+        monitor_name (str): The name of the metric to monitor during training ("val_mse_loss").
+        monitor_mode (str): The mode for monitoring the metric ("min").
+
+    Methods:
+        training_step: Performs a single training step, computing and logging the training loss.
+        validation_step: Performs a single validation step, computing and logging the validation loss.
+        calc_loss: Computes the loss for a given batch using flow matching.
+        forward: Generates predictions for a given context and observation sequence.
+        configure_optimizers: Configures the optimizer for training.
+
+    """
+
     def __init__(
         self,
         history: int,
-        # sigma: float,
+        val_avg_steps: int,
+        sigma: float,
         **base_kwargs,
     ):
         super().__init__(**base_kwargs)
-        # self.sigma = sigma
+        self.sigma = sigma
         self.history = history
+        self.val_avg_steps = val_avg_steps
 
         input_dim = history * (self.ctx_dim + self.tgt_dim) + self.tgt_dim + 1
         self.flow = MLPVF(input_dim, self.hidden_dim, self.tgt_dim)
@@ -35,14 +59,15 @@ class TrajectoryFlowMatching(BaseForecasting):
         self.monitor_mode = "min"
 
     def training_step(self, batch: tuple[Tensor, Tensor, Tensor], *args, **kwargs):
-        batch = self._scale(*batch)
+        batch = self.scale(*batch)
         loss = self.calc_loss(*batch)
         self.log("train_mse_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch, *args, **kwargs):
-        batch = self._scale(*batch)
-        loss = self.calc_loss(*batch)
+        batch = self.scale(*batch)
+        losses = [self.calc_loss(*batch) for _ in range(self.val_avg_steps)]
+        loss = sum(losses) / self.val_avg_steps
         self.log("val_mse_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
@@ -59,9 +84,10 @@ class TrajectoryFlowMatching(BaseForecasting):
         y_k = y[torch.arange(B), k]
         y_kp1 = y[torch.arange(B), k + 1]
 
-        y_t = (1 - t)[:, None] * y_k + t[:, None] * y_kp1
-        # sigma_t = torch.sqrt((self.sigma**2) * t * (1 - t))
-        # y_t = torch.randn(B, device=device) * sigma_t + mu_t
+        tu = t.unsqueeze(-1)
+        mu_t = (1 - tu) * y_k + tu * y_kp1
+        sigma_t = torch.sqrt((self.sigma**2) * tu * (1 - tu))
+        y_t = torch.randn(B, self.tgt_dim, device=device) * sigma_t + mu_t
         dy_t = y_kp1 - y_k
 
         hist_idx = k[:, None] - torch.arange(H, 0, -1, device=device)[None, :]
@@ -79,7 +105,7 @@ class TrajectoryFlowMatching(BaseForecasting):
         preds = []
 
         for k in range(L, L + T):
-            h = torch.cat([y_history, ctx[:, k - H : k]], dim=-1).flatten(1, -1)
+            h = torch.cat([ctx[:, k - H : k], y_history], dim=-1).flatten(1, -1)
             y_k = y_history[:, -1]
             ivp = to.InitialValueProblem(y_k, y_k.new_zeros(B), y_k.new_ones(B))
             solution = self.solver.solve(ivp, args=h)

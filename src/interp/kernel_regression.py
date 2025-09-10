@@ -1,16 +1,42 @@
 import torch
-from torch import Tensor
-
-from .base import BaseInterp
+from torch import Tensor, nn
 
 
-class KernelRegression(BaseInterp):
+class KernelRegression(nn.Module):
+    """A PyTorch module for performing differentiable kernel regression.
+
+    This class implements a kernel regression model that can be fitted with observed data
+    and evaluated at specific time points. It uses a Gaussian-like kernel weighted by
+    temperature and bandwidth parameters to compute smooth interpolations.
+
+    Attributes:
+        bandwidth (float): The bandwidth parameter for the kernel.
+        temperature (float): The temperature parameter for the softmax weights.
+        max_window (int): The maximum window size for efficient computation.
+        w_arange (Tensor): A buffer tensor containing the range of indices for the window.
+
+    Shapes:
+        B -- batch size
+        L -- number of observations
+        M -- number of heads
+        H1 -- number of features per head
+
+    """
+
     def __init__(
         self,
         bandwidth: float,
         temperature: float,
         window_bandwidth_multiplier: float,
     ):
+        """Initialize the KernelRegression module.
+
+        Args:
+            bandwidth (float): The bandwidth parameter for the kernel regression.
+            temperature (float): The temperature parameter for the kernel regression.
+            window_bandwidth_multiplier (float): Multiplier to determine the maximum window size based on the bandwidth.
+
+        """
         super().__init__()
         self.bandwidth = bandwidth
         self.temperature = temperature
@@ -47,7 +73,7 @@ class KernelRegression(BaseInterp):
         """Evaluate the kernel at time t_eval.
 
         Args:
-            t_eval (B, M).
+            t_eval (B, M): time to evaluate the smoothing at.
 
         """
         L = self.t_obs.size(2)

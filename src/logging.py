@@ -1,7 +1,10 @@
+"""File with logging utils."""
+
 from lightning_fabric.utilities.logger import _flatten_dict
 
 
 def cfg2hparams(cfg: dict):
+    """Flatten dict, converting it to a logger-friendly format."""
     cfg_flat = _flatten_dict(cfg, delimiter=".")
     keys = list(cfg_flat.keys())
     for k in keys:

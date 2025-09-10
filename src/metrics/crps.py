@@ -1,3 +1,5 @@
+"""File with the CRPS metric."""
+
 import math
 
 import torch
@@ -37,15 +39,27 @@ def calc_crps(y_true: Tensor, mean: Tensor, scale: Tensor) -> Tensor:
 
 
 class CRPS(Metric):
+    """Calculate the CRPS metric."""
+
     def __init__(self, **kwargs):
+        """Initialize the CRPS metric."""
         super().__init__(**kwargs)
         self.add_state("crps", default=torch.tensor(0.0), dist_reduce_fx="sum")
         self.add_state("n", default=torch.tensor(0), dist_reduce_fx="sum")
 
     def update(self, y_true: Tensor, mean, scale):
+        """Calculate the crps metric on new predictions, add it to internal state.
+
+        Args:
+            y_true: The true values of the target variable.
+            mean: The predicted mean of the target variable.
+            scale: The predicted scale of the target variable.
+
+        """
         crps = calc_crps(y_true, mean, scale)
         self.crps += crps.sum()
         self.n += y_true.numel()
 
     def compute(self):
+        """Compute the CRPS metric."""
         return self.crps / self.n

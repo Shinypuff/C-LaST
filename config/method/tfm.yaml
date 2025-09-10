@@ -1,2 +1,4 @@
 _target_: src.methods.tfm.TrajectoryFlowMatching
 history: 3
+sigma: 0.1
+val_avg_steps: 10

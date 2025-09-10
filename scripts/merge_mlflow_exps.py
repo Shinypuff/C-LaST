@@ -1,8 +1,10 @@
+"""A useful script for merging MLFlow experiments."""
+
 import argparse
 import os
 from pathlib import Path
-import mlflow
 
+import mlflow
 import yaml
 
 parser = argparse.ArgumentParser()

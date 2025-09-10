@@ -1,3 +1,5 @@
+"""File with instantiation utils."""
+
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 
@@ -6,6 +8,21 @@ from .methods.base import BaseForecasting
 
 
 def from_config(cfg: DictConfig):
+    """Instantiate a forecasting module and datamodule from a configuration.
+
+    This function creates a DataModule using parameters from the provided configuration,
+    then instantiates a forecasting method (module) with specific context and target dimensions
+    and other hyperparameters derived from the configuration and datamodule properties.
+
+    Args:
+        cfg (DictConfig): A configuration object containing keys for datasource, context, horizon,
+                        tgt_cols, time_col, batch_size, num_workers, method, hidden_dim, and learning_rate.
+
+    Returns:
+        tuple[BaseForecasting, DataModule]: A tuple containing the instantiated forecasting module
+                                            and the created datamodule.
+
+    """
     datamodule = DataModule(
         datasource=cfg["datasource"],
         context=cfg["context"],
