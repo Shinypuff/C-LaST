@@ -1,76 +1,38 @@
-from typing import Literal
-
-import numpy as np
 import torch
-from pytorch_lightning import LightningModule
-from tensordict import TensorDict
-from torch import nn
-from torch.nn.functional import mse_loss
+from torch import Tensor, nn
 
-from ..nn.decoders.gru_decoder import GRUDecoder
+from ..nn.layers.mlp import MLP
+from .base import BaseForecasting
 
 
-class SimpleForecasting(LightningModule):
+class SupervisedForecasting(BaseForecasting):
     def __init__(
         self,
-        target: str,
-        feats: list[str],
-        backbone: nn.Module,
-        decoder: Literal["GRU", "ODE"],
-        hidden_dim: int,
-        obs_frac: float,
-        learning_rate: float,
+        **base_kwargs,
     ):
-        super().__init__()
+        super().__init__(**base_kwargs)
 
-        self.target = target
-        self.feats = feats
-        self.backbone = backbone
-        self.obs_frac = obs_frac
-        self.learning_rate = learning_rate
+        self.encoder = nn.GRU(
+            self.tgt_dim + self.ctx_dim, self.hidden_dim, batch_first=True
+        )
+        self.decoder = nn.GRUCell(self.hidden_dim + self.ctx_dim, self.hidden_dim)
 
-        match decoder:
-            case "GRU":
-                self.decoder = GRUDecoder(hidden_dim)
-            case _:
-                raise ValueError(f"Unknown decoder! {decoder}.")
+        self.mu_mlp = MLP(self.hidden_dim, self.hidden_dim, self.tgt_dim)
+        self.std_mlp = MLP(self.hidden_dim, self.hidden_dim, self.tgt_dim)
 
-    def forward(self, x_obs, t_obs, t_pred) -> torch.Tensor:
-        embedding = self.backbone(x_obs, t_obs)
-        prediction = self.decoder(embedding, t_pred)
-        return prediction
+    def forward(self, ctx: Tensor, obs: Tensor, T: int):
+        L = obs.shape[1]
+        past_emb = torch.cat([ctx[:, :L], obs], dim=-1)
+        h0 = self.encoder(past_emb)[1].squeeze(0)
+        h = h0
+        pred_embs = []
+        for i in range(T):
+            x = torch.cat([h0, ctx[:, L + i]], dim=-1)
+            h = self.decoder(x, h)
+            pred_embs.append(h)
 
-    def _step(self, batch):
-        feats = [batch[f] for f in self.feats]
-        feats.append(batch[self.target])
-        x = torch.stack(feats, dim=-1)
-        y = batch[self.target]
-        t = batch["timestamp"].to(torch.int32)
-        L = t.shape[1]
+        pred_embs = torch.stack(pred_embs, dim=1)
+        mu = self.mu_mlp(pred_embs)
+        std = self.std_mlp(pred_embs).exp()
 
-        L_obs = (L * self.obs_frac).int()
-        t_obs = t[:L_obs]
-        t_pred = t[L_obs - 1 :]  # To include time since last observed timestamp
-        x_obs = x[:, :L_obs]
-        y_true = y[:, L_obs:]
-
-        y_pred = self(x_obs, t_obs, t_pred)
-        loss = mse_loss(y_true, y_pred)
-        return loss
-
-    def training_step(self, batch: TensorDict) -> torch.Tensor:
-        loss = self._step(batch)
-        self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-        return loss
-
-    def validation_step(self, batch: TensorDict) -> tuple[np.ndarray, np.ndarray]:
-        loss = self._step(batch)
-        self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-
-    def test_step(self, batch: TensorDict) -> tuple[np.ndarray, np.ndarray]:
-        loss = self._step(batch)
-        self.log("test_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-
-    def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
-        return optimizer
+        return mu, std

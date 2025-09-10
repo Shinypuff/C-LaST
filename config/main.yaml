@@ -1,13 +1,13 @@
 defaults:
- - backbone: ncdeformer
- - benchmark: uwgl
- - paradigm: simple
+ - method: tfm
+ - benchmark: etth1s
  - _self_
 
 trainer_args:
   max_epochs: -1
   devices: 1
 
+monitor: val_mae
 hidden_dim: 128
 learning_rate: 1e-3
 batch_size: 32

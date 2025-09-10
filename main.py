@@ -13,12 +13,12 @@ from src.train_val_test import train_val_test
 @hydra.main(config_path="config", config_name="main")
 def main(cfg: DictConfig):
     hydra_choices = HydraConfig.get().runtime.choices
-    paradigm = hydra_choices["paradigm"]
+    method = hydra_choices["method"]
     benchmark = hydra_choices["benchmark"]
-    mlflow.set_experiment(f"{benchmark}_{paradigm}")
+    mlflow.set_experiment(f"{benchmark}_{method}")
 
     module, datamodule = from_config(cfg)
-    train_val_test(module, datamodule, cfg, module.monitor)
+    train_val_test(module, datamodule, cfg, module.monitor_name, module.monitor_mode)
 
     torch.cuda.empty_cache()
     gc.collect()

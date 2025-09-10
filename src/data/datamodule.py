@@ -2,6 +2,7 @@ import polars as pl
 from pytorch_lightning import LightningDataModule
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from torch import from_numpy
 from torch.utils.data import DataLoader, TensorDataset
 
 from .utils import split_history_horizon
@@ -42,25 +43,18 @@ class DataModule(LightningDataModule):
             test_df, context, horizon, tgt_cols, time_col
         )
 
-        ctx_scaler = StandardScaler().fit(ctx_train)
-        tgt_scaler = StandardScaler().fit(obs_train)
+        self.ctx_mean = ctx_train.mean(dim=(0, 1))
+        self.tgt_mean = obs_train.mean(dim=(0, 1))
+        self.ctx_scale = ctx_train.std(dim=(0, 1))
+        self.tgt_scale = obs_train.std(dim=(0, 1))
 
-        ctx_train = ctx_scaler.transform(ctx_train)
-        ctx_val = ctx_scaler.transform(ctx_val)
-        ctx_test = ctx_scaler.transform(ctx_test)
-        obs_train = tgt_scaler.transform(obs_train)
-        obs_val = tgt_scaler.transform(obs_val)
-        obs_test = tgt_scaler.transform(obs_test)
-        tgt_train = tgt_scaler.transform(tgt_train)
-        tgt_val = tgt_scaler.transform(tgt_val)
-        tgt_test = tgt_scaler.transform(tgt_test)
-
+        # TODO: check if tensors:
         self.train_ds = TensorDataset(ctx_train, obs_train, tgt_train)
         self.val_ds = TensorDataset(ctx_val, obs_val, tgt_val)
         self.test_ds = TensorDataset(ctx_test, obs_test, tgt_test)
 
-        self.context_dim = ctx_train.shape[-1]
-        self.target_dim = tgt_train.shape[-1]
+        self.ctx_dim = ctx_train.shape[-1]
+        self.tgt_dim = tgt_train.shape[-1]
 
     def train_dataloader(self):
         return DataLoader(

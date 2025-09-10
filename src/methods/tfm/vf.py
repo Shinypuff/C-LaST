@@ -1,7 +1,9 @@
 """Module with all the considered dynamics vector fields."""
 
-from torch import Tensor, nn
 import torch
+from torch import Tensor, nn
+
+from ...nn.layers.mlp import MLP
 
 
 class MLPVF(nn.Module):
@@ -11,13 +13,7 @@ class MLPVF(nn.Module):
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
 
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.SELU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.SELU(),
-            nn.Linear(hidden_dim, output_dim),
-        )
+        self.net = MLP(input_dim, hidden_dim, output_dim)
 
     def forward(self, t: Tensor, y: Tensor, h: Tensor):
         flow_in = torch.cat([t.unsqueeze(-1), y, h], dim=-1)

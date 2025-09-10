@@ -12,23 +12,24 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import MLFlowLogger
 from torchinfo import summary
 
-from .utils.logging import cfg2hparams
+from .logging import cfg2hparams
 
 
 def train_val_test(
     module: LightningModule,
     datamodule: LightningDataModule,
     cfg: DictConfig,
-    monitor: str,
+    monitor_name: str,
+    monitor_mode: str,
 ):
     torch.set_float32_matmul_precision("medium")
     with mlflow.start_run() as run:
         try:
             ckpt_callback = ModelCheckpoint(
-                monitor=monitor, mode="max", filename="checkpoint"
+                monitor=monitor_name, mode=monitor_mode, filename="checkpoint"
             )
             es_callback = EarlyStopping(
-                monitor=monitor, mode="max", patience=cfg["patience"]
+                monitor=monitor_name, mode=monitor_mode, patience=cfg["patience"]
             )
 
             trainer = Trainer(

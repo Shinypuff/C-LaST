@@ -1,5 +1,6 @@
-import numpy as np
 import polars as pl
+import torch
+from torch import Tensor
 
 
 def split_history_horizon(
@@ -8,22 +9,22 @@ def split_history_horizon(
     horizon: int,
     tgt_cols: list | None = None,
     time_col: str | None = None,
-):
+) -> tuple[Tensor, Tensor, Tensor]:
     if tgt_cols is None:
         tgt_cols = [c for c in df.columns if c != time_col]
         ctx_cols = []
     else:
-        ctx_cols = [c for c in df.columns if c not in tgt_cols]
+        ctx_cols = [c for c in df.columns if c not in tgt_cols and c != time_col]
 
     if time_col:
-        if df.schema[time_col].dtype == pl.Datetime:
+        if df.schema[time_col] == pl.Datetime:
             time_expr = pl.col(time_col).dt.timestamp()
         else:
-            time_expr = pl.col(time_col).cast(float)
+            time_expr = pl.col(time_col)
     else:
-        time_expr = pl.col("index").cast(float)
+        time_expr = pl.col("index")
 
-    df_idx = df.with_row_index()
+    df_idx = df.cast(pl.Float32).with_row_index()
 
     ctx_df = (
         df_idx.rolling("index", period=f"{history + horizon}i", offset=f"-{history}i")
@@ -46,9 +47,9 @@ def split_history_horizon(
         .select(pl.col(*tgt_cols).list.to_array(horizon))
     )
 
-    ctx = np.stack([ctx_df[c].to_numpy() for c in ctx_df.columns], axis=-1)
-    obs = np.stack([obs_df[c].to_numpy() for c in tgt_cols], axis=-1)
-    tgt = np.stack([tgt_df[c].to_numpy() for c in tgt_cols], axis=-1)
+    ctx = torch.stack([ctx_df[c].to_torch() for c in ctx_df.columns], axis=-1)
+    obs = torch.stack([obs_df[c].to_torch() for c in tgt_cols], axis=-1)
+    tgt = torch.stack([tgt_df[c].to_torch() for c in tgt_cols], axis=-1)
 
     return ctx, obs, tgt
 

@@ -1,4 +1,5 @@
-_target_: src.data.rolling_dm.RollingDataModule
+# @package _global_
+
 datasource: /mnt/data/k2vae/ETT-small/ETTh1.csv
 context: 24
 horizon: 24
