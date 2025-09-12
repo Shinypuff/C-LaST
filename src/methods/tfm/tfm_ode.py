@@ -5,11 +5,12 @@ import torchode as to
 from torch import Tensor
 from torch.nn.functional import mse_loss
 
+from ...layers.mlp import MLP
 from ..base import BaseForecasting
-from .vf import MLPVF
+from .dual_target_vf import DualTargetVF
 
 
-class TrajectoryFlowMatching(BaseForecasting):
+class TrajectoryFlowMatchingODE(BaseForecasting):
     """TrajectoryFlowMatching is a forecasting model based on flow matching techniques.
 
     This class implements a trajectory-based flow matching approach for time series forecasting.
@@ -35,41 +36,38 @@ class TrajectoryFlowMatching(BaseForecasting):
     def __init__(
         self,
         history: int,
-        val_avg_steps: int,
         sigma: float,
         **base_kwargs,
     ):
         super().__init__(**base_kwargs)
         self.sigma = sigma
         self.history = history
-        self.val_avg_steps = val_avg_steps
 
         input_dim = history * (self.ctx_dim + self.tgt_dim) + self.tgt_dim + 1
-        self.flow = MLPVF(input_dim, self.hidden_dim, self.tgt_dim)
-
-        term = to.ODETerm(self.flow, with_args=True)
-        step_method = to.Dopri5(term=term)
-        step_size_controller = to.IntegralController(atol=1e-4, rtol=1e-4, term=term)
-        self.solver = to.AutoDiffAdjoint(
-            step_method, step_size_controller, backprop_through_step_size_control=False
+        self.mean_mlp = MLP(
+            input_dim,
+            self.hidden_dim,
+            self.tgt_dim,
+            hidden_layers=2,
+            final_act=None,
         )
 
-        # Prediction takes a while, so we monitor val loss
-        self.monitor_name = "val_mse_loss"
-        self.monitor_mode = "min"
+        self.noise_mlp = MLP(
+            input_dim,
+            self.hidden_dim,
+            self.tgt_dim,
+            hidden_layers=2,
+            final_act=torch.exp,
+        )
 
-    def training_step(self, batch: tuple[Tensor, Tensor, Tensor], *args, **kwargs):
-        batch = self.scale(*batch)
-        loss = self.calc_loss(*batch)
-        self.log("train_mse_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-        return loss
+        dual_target_vf = to.ODETerm(
+            DualTargetVF(self.mean_mlp, self.noise_mlp), with_args=True
+        )
 
-    def validation_step(self, batch, *args, **kwargs):
-        batch = self.scale(*batch)
-        losses = [self.calc_loss(*batch) for _ in range(self.val_avg_steps)]
-        loss = sum(losses) / self.val_avg_steps
-        self.log("val_mse_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-        return loss
+        self.solver = to.AutoDiffAdjoint(
+            to.Dopri5(term=dual_target_vf),
+            to.IntegralController(atol=1e-4, rtol=1e-4, term=dual_target_vf),
+        )
 
     def calc_loss(self, ctx, obs, tgt):
         y = torch.cat([obs, tgt], dim=1)
@@ -83,39 +81,60 @@ class TrajectoryFlowMatching(BaseForecasting):
         t = torch.rand(B, device=device)
         y_k = y[torch.arange(B), k]
         y_kp1 = y[torch.arange(B), k + 1]
+        hist_idx = k[:, None] - torch.arange(H, 0, -1, device=device)[None, :]
+        history = X[torch.arange(B)[:, None], hist_idx].flatten(1, -1)
 
         tu = t.unsqueeze(-1)
         mu_t = (1 - tu) * y_k + tu * y_kp1
-        sigma_t = torch.sqrt((self.sigma**2) * tu * (1 - tu))
-        y_t = torch.randn(B, self.tgt_dim, device=device) * sigma_t + mu_t
-        dy_t = y_kp1 - y_k
+        y_t = mu_t + self.sigma * torch.randn(B, self.tgt_dim, device=device)
+        input_tensor = torch.cat([tu, y_t, history], dim=-1)
 
-        hist_idx = k[:, None] - torch.arange(H, 0, -1, device=device)[None, :]
-        history = X[torch.arange(B)[:, None], hist_idx]
+        yhat = self.mean_mlp(input_tensor)
+        noise = self.noise_mlp(input_tensor)
 
-        u_t = self.flow(t, y_t, history.flatten(1, -1))
-        loss = mse_loss(u_t, dy_t)
-        return loss
+        mean_loss = mse_loss(y_kp1, yhat)
+        uncertainty = (y_kp1 - yhat).abs()
+        noise_loss = mse_loss(uncertainty.detach(), noise)
+        return mean_loss + noise_loss
 
     def forward(self, ctx: Tensor, obs: Tensor, T: int):
         B = ctx.shape[0]
         L = obs.shape[1]
         H = self.history
+        D = obs.shape[-1]
         y_history = obs[:, -H:]
-        preds = []
+
+        dual_y0 = torch.cat([obs[:, -1], obs.new_zeros(B, D)], dim=-1)
+
+        y_preds = []
+        s_preds = []
 
         for k in range(L, L + T):
             h = torch.cat([ctx[:, k - H : k], y_history], dim=-1).flatten(1, -1)
-            y_k = y_history[:, -1]
-            ivp = to.InitialValueProblem(y_k, y_k.new_zeros(B), y_k.new_ones(B))
-            solution = self.solver.solve(ivp, args=h)
-            y_kp1 = solution.ys[:, -1]
-            y_history = torch.roll(y_history, -1, 1)
-            y_history[:, -1] = y_kp1
-            preds.append(y_kp1)
 
-        preds = torch.stack(preds, dim=1)
-        return preds, torch.zeros_like(preds)
+            # Mean value prediction:
+            t0 = dual_y0.new_zeros(B)
+            t1 = dual_y0.new_ones(B)
+            ivp = to.InitialValueProblem(dual_y0, t0, t1)
+            solution = self.solver.solve(ivp, args=h)
+            dual_y0 = solution.ys[:, -1]
+            y_pred, s_pred = torch.chunk(dual_y0, 2, dim=-1)
+
+            y_history[:, :-1] = y_history[:, 1:]
+            y_history[:, -1] = y_pred
+            y_preds.append(y_pred)
+            s_preds.append(s_pred)
+
+        y_preds = torch.stack(y_preds, dim=1)
+        s_preds = torch.stack(s_preds, dim=1)
+
+        return y_preds, s_preds
+
+    def training_step(self, batch: tuple[Tensor, Tensor, Tensor], *args, **kwargs):
+        batch = self.scale(*batch)
+        loss = self.calc_loss(*batch)
+        self.log("train_mse_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+        return loss
 
     def configure_optimizers(self):
         return torch.optim.AdamW(self.parameters(), lr=self.learning_rate)

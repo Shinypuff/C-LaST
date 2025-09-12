@@ -47,7 +47,8 @@ class DataModule(LightningDataModule):
         datasource: str,
         context: int,
         horizon: int,
-        batch_size: int = 32,
+        train_batch_size: int = 32,
+        eval_batch_size: int = 512,
         num_workers: int = 16,
         tgt_cols: list[str] | None = None,
         time_col: str | None = None,
@@ -63,7 +64,8 @@ class DataModule(LightningDataModule):
             datasource (str): Path to the CSV file containing the data.
             context (int): The number of time steps to use as context for the model.
             horizon (int): The number of time steps to predict into the future.
-            batch_size (int, optional): The batch size for data loading. Defaults to 32.
+            train_batch_size (int, optional): The batch size for train DataLoader. Defaults to 32.
+            eval_batch_size (int, optional): The batch size for eval DataLoader. Defaults to 512. Bigger to speed up things.
             num_workers (int, optional): The number of workers for data loading. Defaults to 16.
             tgt_cols (list[str] | None, optional): List of target column names. If None, all columns are used. Defaults to None.
             time_col (str | None, optional): The name of the time column. If None, the row number is used. Defaults to None.
@@ -71,7 +73,8 @@ class DataModule(LightningDataModule):
         """
         super().__init__()
         self.datasource = datasource
-        self.batch_size = batch_size
+        self.train_batch_size = train_batch_size
+        self.eval_batch_size = eval_batch_size
         self.num_workers = num_workers
         self.context = context
         self.horizon = horizon
@@ -118,7 +121,7 @@ class DataModule(LightningDataModule):
         """
         return DataLoader(
             self.train_ds,
-            batch_size=self.batch_size,
+            batch_size=self.train_batch_size,
             shuffle=True,
             num_workers=self.num_workers,
         )
@@ -135,7 +138,7 @@ class DataModule(LightningDataModule):
         """
         return DataLoader(
             self.val_ds,
-            batch_size=self.batch_size,
+            batch_size=self.eval_batch_size,
             shuffle=False,
             num_workers=self.num_workers,
         )
@@ -152,7 +155,7 @@ class DataModule(LightningDataModule):
         """
         return DataLoader(
             self.test_ds,
-            batch_size=self.batch_size,
+            batch_size=self.eval_batch_size,
             shuffle=False,
             num_workers=self.num_workers,
         )

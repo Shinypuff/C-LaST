@@ -1,5 +1,7 @@
 """File with a basic MLP class."""
 
+from typing import Callable
+
 import torch
 from torch import nn
 
@@ -20,7 +22,14 @@ class MLP(nn.Module):
 
     """
 
-    def __init__(self, input_dim: int, hidden_dim: int, output_dim: int):
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_dim: int,
+        output_dim: int,
+        hidden_layers: int = 2,
+        final_act: Callable | None = None,
+    ):
         """Initialize the MLP with specified input, hidden, and output dimensions.
 
         Args:
@@ -33,15 +42,34 @@ class MLP(nn.Module):
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
+        self.hidden_layers = hidden_layers
+        self.final_act = final_act
 
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.BatchNorm1d(hidden_dim),
-            nn.SELU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.BatchNorm1d(hidden_dim),
-            nn.SELU(),
-            nn.Linear(hidden_dim, output_dim),
+        self.net = nn.Sequential()
+
+        self.net.append(
+            nn.Sequential(
+                nn.Linear(input_dim, hidden_dim),
+                nn.BatchNorm1d(hidden_dim),
+                nn.SELU(),
+            )
+        )
+        for _ in range(hidden_layers - 1):
+            self.net.append(
+                nn.Sequential(
+                    nn.Linear(hidden_dim, hidden_dim),
+                    nn.BatchNorm1d(hidden_dim),
+                    nn.SELU(),
+                )
+            )
+
+        self.net.append(
+            nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim),
+                nn.BatchNorm1d(hidden_dim),
+                nn.SELU(),
+                nn.Linear(hidden_dim, output_dim),
+            )
         )
 
     def forward(self, x: torch.Tensor):
@@ -57,4 +85,7 @@ class MLP(nn.Module):
         preshape = x.shape[:-1]
         x = x.reshape(-1, self.input_dim)
         out = self.net(x)
-        return out.reshape(*preshape, self.output_dim)
+        out = out.reshape(*preshape, self.output_dim)
+        if self.final_act is not None:
+            out = self.final_act(out)
+        return out

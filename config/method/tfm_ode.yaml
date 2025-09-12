@@ -1,0 +1,12 @@
+# @package _global_
+
+method:
+  _target_: src.methods.tfm.TrajectoryFlowMatchingODE
+  history: 3
+  sigma: 0.1
+  learning_rate: 1e-6
+  hidden_dim: 256
+
+patience: 3
+trainer_args:
+  check_val_every_n_epoch: 50

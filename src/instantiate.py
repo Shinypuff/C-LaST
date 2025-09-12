@@ -29,7 +29,8 @@ def from_config(cfg: DictConfig):
         horizon=cfg["horizon"],
         tgt_cols=cfg["tgt_cols"],
         time_col=cfg["time_col"],
-        batch_size=cfg["batch_size"],
+        train_batch_size=cfg["train_batch_size"],
+        eval_batch_size=cfg["eval_batch_size"],
         num_workers=cfg["num_workers"],
     )
 
@@ -44,8 +45,6 @@ def from_config(cfg: DictConfig):
         ctx_scale=datamodule.ctx_scale,
         tgt_mean=datamodule.tgt_mean,
         tgt_scale=datamodule.tgt_scale,
-        hidden_dim=cfg["hidden_dim"],
-        learning_rate=cfg["learning_rate"],
     )
 
     return module, datamodule
