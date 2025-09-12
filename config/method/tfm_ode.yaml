@@ -10,3 +10,7 @@ method:
 patience: 3
 trainer_args:
   check_val_every_n_epoch: 50
+
+# Конфиг-файл глобального уровня, с package global
+# тут можно указать любые параметры, в частности 
+# тут удобно менять  обучения (patience, check_val_every_n_epoch).
