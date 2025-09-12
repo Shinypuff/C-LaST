@@ -1,5 +1,5 @@
 defaults:
- - method: tfm
+ - method: tfm_ode
  - benchmark: etth1s
  - _self_
 
@@ -8,7 +8,6 @@ trainer_args:
   devices: 1
 
 patience: ???
-monitor: val_mae
 train_batch_size: 32
 eval_batch_size: 512
 num_workers: 16

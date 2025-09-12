@@ -31,7 +31,6 @@ class BaseForecasting(LightningModule):
         ctx_scale (NDArray): The scale values for context variables.
         tgt_mean (NDArray): The mean values for target variables.
         tgt_scale (NDArray): The scale values for target variables.
-        hidden_dim (int): The dimensionality of the hidden layers in the model.
         learning_rate (float): The learning rate for the optimizer.
 
     Methods:
@@ -58,7 +57,6 @@ class BaseForecasting(LightningModule):
         ctx_scale: NDArray,
         tgt_mean: NDArray,
         tgt_scale: NDArray,
-        hidden_dim: int,
         learning_rate: float,
     ):
         """Initialize the base method.
@@ -83,7 +81,6 @@ class BaseForecasting(LightningModule):
         self.register_buffer("tgt_mean", tgt_mean)
         self.register_buffer("tgt_scale", tgt_scale)
 
-        self.hidden_dim = hidden_dim
         self.learning_rate = learning_rate
 
         distribution_metrics = MetricCollection({"crps": CRPS()})

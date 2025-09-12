@@ -29,25 +29,26 @@ class GRUForecaster(BaseForecasting):
 
     """
 
-    def __init__(self, num_layers: int, **base_kwargs):
+    def __init__(self, num_layers: int, hidden_dim: int, **base_kwargs):
         """Initialize internal state."""
         super().__init__(**base_kwargs)
 
         input_dim = self.tgt_dim + self.ctx_dim
         self.encoder = nn.GRU(
-            input_dim, self.hidden_dim, num_layers=num_layers, batch_first=True
+            input_dim, hidden_dim, num_layers=num_layers, batch_first=True
         )
 
         self.decoder = nn.GRU(
-            self.hidden_dim + self.ctx_dim,
-            self.hidden_dim,
+            hidden_dim + self.ctx_dim,
+            hidden_dim,
             num_layers=num_layers,
             batch_first=True,
         )
 
+        self.mu_mlp = MLP(hidden_dim, hidden_dim, self.tgt_dim)
+        self.std_mlp = MLP(hidden_dim, hidden_dim, self.tgt_dim)
+        self.hidden_dim = hidden_dim
         self.num_layers = num_layers
-        self.mu_mlp = MLP(self.hidden_dim, self.hidden_dim, self.tgt_dim)
-        self.std_mlp = MLP(self.hidden_dim, self.hidden_dim, self.tgt_dim)
 
     def forward(self, ctx: Tensor, obs: Tensor, T: int):
         """Run the forward pass of the model.

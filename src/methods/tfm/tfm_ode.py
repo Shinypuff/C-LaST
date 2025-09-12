@@ -37,16 +37,15 @@ class TrajectoryFlowMatchingODE(BaseForecasting):
         self,
         history: int,
         sigma: float,
+        hidden_dim: int,
         **base_kwargs,
     ):
         super().__init__(**base_kwargs)
-        self.sigma = sigma
-        self.history = history
 
         input_dim = history * (self.ctx_dim + self.tgt_dim) + self.tgt_dim + 1
         self.mean_mlp = MLP(
             input_dim,
-            self.hidden_dim,
+            hidden_dim,
             self.tgt_dim,
             hidden_layers=2,
             final_act=None,
@@ -54,7 +53,7 @@ class TrajectoryFlowMatchingODE(BaseForecasting):
 
         self.noise_mlp = MLP(
             input_dim,
-            self.hidden_dim,
+            hidden_dim,
             self.tgt_dim,
             hidden_layers=2,
             final_act=torch.exp,
@@ -68,6 +67,10 @@ class TrajectoryFlowMatchingODE(BaseForecasting):
             to.Dopri5(term=dual_target_vf),
             to.IntegralController(atol=1e-4, rtol=1e-4, term=dual_target_vf),
         )
+
+        self.sigma = sigma
+        self.history = history
+        self.hidden_dim = hidden_dim
 
     def calc_loss(self, ctx, obs, tgt):
         y = torch.cat([obs, tgt], dim=1)
