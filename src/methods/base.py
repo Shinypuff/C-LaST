@@ -244,7 +244,7 @@ class BaseForecasting(LightningModule):
 
         """
         ctx, obs, tgt = batch
-        ctx, obs, tgt = self.scale(ctx, obs, tgt)
+        ctx, obs = self.scale(ctx, obs)
         mean, scale = self(ctx, obs, tgt.shape[1])
         self.calc_log_metrics(tgt, mean, scale, "test")
 
