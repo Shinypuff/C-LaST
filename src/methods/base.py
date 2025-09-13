@@ -1,6 +1,7 @@
 """The base class for all forecasting models."""
 
-import torch
+from typing import Literal
+
 from numpy.typing import NDArray
 from pytorch_lightning import LightningModule
 from torch import Tensor
@@ -57,6 +58,7 @@ class BaseForecasting(LightningModule):
         ctx_scale: NDArray,
         tgt_mean: NDArray,
         tgt_scale: NDArray,
+        unscale_metrics: bool = False,
     ):
         """Initialize the base method.
 
@@ -91,8 +93,14 @@ class BaseForecasting(LightningModule):
 
         self.monitor_name = "val_crps"
         self.monitor_mode = "min"
+        self.unscale_metrics = unscale_metrics
 
-    def scale(self, ctx: Tensor, obs: Tensor, tgt: Tensor | None = None):
+    def scale(
+        self,
+        ctx: Tensor | None = None,
+        obs: Tensor | None = None,
+        tgt: Tensor | None = None,
+    ):
         """Scale the context, observation, and target tensors using precomputed means and scales.
 
         This method normalizes the input tensors by subtracting the corresponding mean and dividing by the scale.
@@ -100,26 +108,32 @@ class BaseForecasting(LightningModule):
         are scaled using `tgt_mean` and `tgt_scale`.
 
         Args:
-            ctx (Tensor): The context tensor to be scaled.
-            obs (Tensor): The observation tensor to be scaled.
-            tgt (Tensor | None, optional): The target tensor to be scaled. If None, it is ignored. Defaults to None.
+            ctx (Tensor | None, optional): The context tensor to be scaled.
+            obs (Tensor | None, optional): The observation tensor to be scaled.
+            tgt (Tensor | None, optional): The target tensor to be scaled.
 
         Returns:
-            tuple: A tuple containing the scaled context and observation tensors. If `tgt` is provided,
-                the tuple also includes the scaled target tensor.
+            tuple: A tuple containing the scaled tensors.
 
         """
-        # handle time separately (dividing by mean)
-        ctx[..., 0] = ctx[..., 0] / self.ctx_mean[0]
+        results = []
+        if ctx is not None:
+            # handle time separately (dividing by mean)
+            ctx[..., 0] = ctx[..., 0] / self.ctx_mean[0]
 
-        # standard-scale the rest
-        ctx[..., 1:] = (ctx[..., 1:] - self.ctx_mean[1:]) / self.ctx_scale[1:]
-        obs = (obs - self.tgt_mean) / self.tgt_scale
+            # standard-scale the rest
+            ctx[..., 1:] = (ctx[..., 1:] - self.ctx_mean[1:]) / self.ctx_scale[1:]
+            results.append(ctx)
+
+        if obs is not None:
+            obs = (obs - self.tgt_mean) / self.tgt_scale
+            results.append(obs)
+
         if tgt is not None:
             tgt = (tgt - self.tgt_mean) / self.tgt_scale
-            return ctx, obs, tgt
-        else:
-            return ctx, obs
+            results.append(tgt)
+
+        return tuple(results)
 
     def unscale(self, mean: Tensor, scale: Tensor):
         """Unscales the given mean and scale tensors using the target mean and scale.
@@ -133,6 +147,37 @@ class BaseForecasting(LightningModule):
 
         """
         return mean * self.tgt_scale + self.tgt_mean, scale * self.tgt_scale
+
+    def calc_log_metrics(
+        self,
+        tgt_orig: Tensor,
+        mean: Tensor,
+        scale: Tensor,
+        stage: Literal["val", "test"],
+    ):
+        """Calculate and log metrics for the given mean and scale tensors.
+
+        Args:
+            tgt_orig (Tensor): The original (unscaled) target tensor.
+            mean (Tensor): The mean tensor.
+            scale (Tensor): The scale tensor.
+            stage (Literal["val", "test"]): The stage for which the metrics are being calculated.
+
+        """
+        if self.unscale_metrics:
+            mean, scale = self.unscale(mean, scale)
+            tgt = tgt_orig
+        else:
+            tgt = self.scale(tgt=tgt_orig)[0]
+
+        metrics_d = getattr(self, f"{stage}_metrics_d")
+        metrics_p = getattr(self, f"{stage}_metrics_p")
+
+        metrics_d(tgt, mean, scale)
+        metrics_p(tgt, mean)
+
+        self.log_dict(metrics_d, on_step=False, on_epoch=True, prog_bar=True)
+        self.log_dict(metrics_p, on_step=False, on_epoch=True, prog_bar=True)
 
     def training_step(self, batch: tuple[Tensor, Tensor, Tensor], *args, **kwargs):
         """Perform a single training step.
@@ -175,12 +220,9 @@ class BaseForecasting(LightningModule):
         """
         ctx, obs, tgt = batch
         ctx, obs = self.scale(ctx, obs)
+
         mean, scale = self(ctx, obs, tgt.shape[1])
-        mean, scale = self.unscale(mean, scale)
-        self.val_metrics_d(tgt, mean, scale)
-        self.val_metrics_p(tgt, mean)
-        self.log_dict(self.val_metrics_p, on_step=False, on_epoch=True, prog_bar=True)
-        self.log_dict(self.val_metrics_d, on_step=False, on_epoch=True, prog_bar=True)
+        self.calc_log_metrics(tgt, mean, scale, "val")
 
     def test_step(self, batch: tuple[Tensor, Tensor, Tensor], *args, **kwargs):
         """Perform a test step on a batch of data.
@@ -202,13 +244,9 @@ class BaseForecasting(LightningModule):
 
         """
         ctx, obs, tgt = batch
-        ctx, obs = self.scale(ctx, obs)
+        ctx, obs, tgt = self.scale(ctx, obs, tgt)
         mean, scale = self(ctx, obs, tgt.shape[1])
-        mean, scale = self.unscale(mean, scale)
-        self.test_metrics_d(tgt, mean, scale)
-        self.test_metrics_p(tgt, mean)
-        self.log_dict(self.test_metrics_p, on_step=False, on_epoch=True)
-        self.log_dict(self.test_metrics_d, on_step=False, on_epoch=True)
+        self.calc_log_metrics(tgt, mean, scale, "test")
 
     def forward(self, ctx: Tensor, obs: Tensor, T: int):
         """Run the forward pass of the model, override this method in children.

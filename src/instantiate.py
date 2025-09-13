@@ -45,6 +45,7 @@ def from_config(cfg: DictConfig):
         ctx_scale=datamodule.ctx_scale,
         tgt_mean=datamodule.tgt_mean,
         tgt_scale=datamodule.tgt_scale,
+        unscale_metrics=cfg["unscale_metrics"],
     )
 
     return module, datamodule
