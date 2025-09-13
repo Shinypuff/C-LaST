@@ -1,7 +1,7 @@
 defaults:
- - method: tfm_ode
- - benchmark: etth1s
  - _self_
+ - benchmark: etth1s
+ - method: tfm_ode
 
 trainer_args:
   max_epochs: -1

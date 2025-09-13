@@ -1,0 +1,5 @@
+_target_: src.methods.denots.DeNOTSForecaster
+timescale: 5
+hidden_dim: 256
+lr: 1e-3
+

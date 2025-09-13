@@ -57,7 +57,6 @@ class BaseForecasting(LightningModule):
         ctx_scale: NDArray,
         tgt_mean: NDArray,
         tgt_scale: NDArray,
-        learning_rate: float,
     ):
         """Initialize the base method.
 
@@ -69,7 +68,6 @@ class BaseForecasting(LightningModule):
             tgt_mean (NDArray): Mean values for normalizing target variables.
             tgt_scale (NDArray): Scale values for normalizing target variables.
             hidden_dim (int): Dimension of the hidden layers.
-            learning_rate (float): Learning rate for the optimizer.
 
         """
         super().__init__()
@@ -80,8 +78,6 @@ class BaseForecasting(LightningModule):
         self.register_buffer("ctx_scale", ctx_scale)
         self.register_buffer("tgt_mean", tgt_mean)
         self.register_buffer("tgt_scale", tgt_scale)
-
-        self.learning_rate = learning_rate
 
         distribution_metrics = MetricCollection({"crps": CRPS()})
         pointwise_metrics = MetricCollection(
@@ -113,7 +109,11 @@ class BaseForecasting(LightningModule):
                 the tuple also includes the scaled target tensor.
 
         """
-        ctx = (ctx - self.ctx_mean) / self.ctx_scale
+        # handle time separately (dividing by mean)
+        ctx[..., 0] = ctx[..., 0] / self.ctx_mean[0]
+
+        # standard-scale the rest
+        ctx[..., 1:] = (ctx[..., 1:] - self.ctx_mean[1:]) / self.ctx_scale[1:]
         obs = (obs - self.tgt_mean) / self.tgt_scale
         if tgt is not None:
             tgt = (tgt - self.tgt_mean) / self.tgt_scale
@@ -226,15 +226,3 @@ class BaseForecasting(LightningModule):
 
         """
         raise NotImplementedError("Implement the forward method!")
-
-    def configure_optimizers(self):
-        """Configure the optimizer for the model.
-
-        This method sets up the AdamW optimizer with the specified learning rate
-        and applies it to all model parameters.
-
-        Returns:
-            torch.optim.AdamW: The configured AdamW optimizer.
-
-        """
-        return torch.optim.AdamW(self.parameters(), lr=self.learning_rate)

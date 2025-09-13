@@ -14,15 +14,15 @@ class DualTargetVF(nn.Module):
         self.noise_net = noise_net
         self.eps = eps
 
-    def forward(self, t: Tensor, dual_y: Tensor, h: Tensor):
+    def forward(self, t: Tensor, dual_y: Tensor, args: tuple[Tensor, Tensor]):
         """Calculate the flow at the given point."""
-        tu = t.unsqueeze(-1)
-        time_till_next = (1 - tu).clip(min=self.eps)
+        h, t1 = args
+        time_till_next_u = (t1 - t).clip(min=self.eps).unsqueeze(-1)
 
         mean = dual_y[:, : dual_y.shape[1] // 2]
-        flow_in = torch.cat([tu, mean, h], dim=-1)
+        flow_in = torch.cat([h, mean, t.unsqueeze(-1)], dim=-1)
         mean_target = self.mean_net(flow_in)
         noise_target = self.noise_net(flow_in)
         target = torch.cat([mean_target, noise_target], dim=-1)
-        flow = (target - dual_y) / time_till_next
+        flow = (target - dual_y) / time_till_next_u
         return flow

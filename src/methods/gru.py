@@ -29,7 +29,7 @@ class GRUForecaster(BaseForecasting):
 
     """
 
-    def __init__(self, num_layers: int, hidden_dim: int, **base_kwargs):
+    def __init__(self, num_layers: int, hidden_dim: int, lr: float, **base_kwargs):
         """Initialize internal state."""
         super().__init__(**base_kwargs)
 
@@ -49,6 +49,7 @@ class GRUForecaster(BaseForecasting):
         self.std_mlp = MLP(hidden_dim, hidden_dim, self.tgt_dim)
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
+        self.lr = lr
 
     def forward(self, ctx: Tensor, obs: Tensor, T: int):
         """Run the forward pass of the model.
@@ -81,3 +82,6 @@ class GRUForecaster(BaseForecasting):
         means = self.mu_mlp(hiddens)
         scales = self.std_mlp(hiddens).exp()
         return means, scales
+
+    def configure_optimizers(self):
+        return torch.optim.AdamW(self.parameters(), lr=self.lr)

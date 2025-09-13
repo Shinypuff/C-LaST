@@ -38,11 +38,12 @@ class TrajectoryFlowMatchingODE(BaseForecasting):
         history: int,
         sigma: float,
         hidden_dim: int,
+        lr: float,
         **base_kwargs,
     ):
         super().__init__(**base_kwargs)
 
-        input_dim = history * (self.ctx_dim + self.tgt_dim) + self.tgt_dim + 1
+        input_dim = (history + 1) * (self.ctx_dim + self.tgt_dim) + self.tgt_dim + 1
         self.mean_mlp = MLP(
             input_dim,
             hidden_dim,
@@ -71,26 +72,38 @@ class TrajectoryFlowMatchingODE(BaseForecasting):
         self.sigma = sigma
         self.history = history
         self.hidden_dim = hidden_dim
+        self.lr = lr
 
     def calc_loss(self, ctx, obs, tgt):
         y = torch.cat([obs, tgt], dim=1)
-        X = torch.cat([ctx, y], dim=-1)
+
+        # Shift context 1 into the future
+        X = torch.cat([ctx[:, 1:], y[:, :-1]], dim=-1)
+        time = torch.cumsum(ctx[..., 0], dim=1)
 
         B, T = X.shape[:-1]
         H = self.history
         device = ctx.device
 
         k = torch.randint(H + 1, T - 1, (B,), device=device)
-        t = torch.rand(B, device=device)
+        t_01 = torch.rand(B, device=device)
+
+        t_k = time[torch.arange(B), k]
+        t_kp1 = time[torch.arange(B), k + 1]
         y_k = y[torch.arange(B), k]
         y_kp1 = y[torch.arange(B), k + 1]
-        hist_idx = k[:, None] - torch.arange(H, 0, -1, device=device)[None, :]
+
+        # Construct history, such that
+        # history[:, 0] is time till next
+        # so it's reversed (0, -1, -2, ...)
+        hist_idx = k[:, None] - torch.arange(0, H + 1, device=device)[None, :]
         history = X[torch.arange(B)[:, None], hist_idx].flatten(1, -1)
 
-        tu = t.unsqueeze(-1)
-        mu_t = (1 - tu) * y_k + tu * y_kp1
+        tu_01 = t_01.unsqueeze(-1)
+        mu_t = (1 - tu_01) * y_k + tu_01 * y_kp1
         y_t = mu_t + self.sigma * torch.randn(B, self.tgt_dim, device=device)
-        input_tensor = torch.cat([tu, y_t, history], dim=-1)
+        t = t_k + t_01 * (t_kp1 - t_k)
+        input_tensor = torch.cat([history, y_t, t[:, None]], dim=-1)
 
         yhat = self.mean_mlp(input_tensor)
         noise = self.noise_mlp(input_tensor)
@@ -105,26 +118,35 @@ class TrajectoryFlowMatchingODE(BaseForecasting):
         L = obs.shape[1]
         H = self.history
         D = obs.shape[-1]
-        y_history = obs[:, -H:]
 
+        # History is reversed (flip), 0, -1, -2, ...!
+        y_history = obs[:, -(H + 1) :].flip(1)
+        time = torch.cumsum(ctx[..., 0], dim=1)
+
+        # mean + scale = dual variable
         dual_y0 = torch.cat([obs[:, -1], obs.new_zeros(B, D)], dim=-1)
 
         y_preds = []
         s_preds = []
 
+        # Predict the k-th value
         for k in range(L, L + T):
-            h = torch.cat([ctx[:, k - H : k], y_history], dim=-1).flatten(1, -1)
+            t0 = time[:, k - 1]
+            t1 = time[:, k]
 
-            # Mean value prediction:
-            t0 = dual_y0.new_zeros(B)
-            t1 = dual_y0.new_ones(B)
+            # Note the history reversal here as well (flip)
+            ctx_history = ctx[:, k - H : k + 1 :].flip(1)
+            h = torch.cat([ctx_history, y_history], dim=-1).flatten(1, -1)
+
             ivp = to.InitialValueProblem(dual_y0, t0, t1)
-            solution = self.solver.solve(ivp, args=h)
+            solution = self.solver.solve(ivp, args=(h, t1))
             dual_y0 = solution.ys[:, -1]
             y_pred, s_pred = torch.chunk(dual_y0, 2, dim=-1)
 
-            y_history[:, :-1] = y_history[:, 1:]
-            y_history[:, -1] = y_pred
+            # Insert new value !at the front! (reversed history)
+            y_history[:, 1:] = y_history[:, :-1]
+            y_history[:, 1] = y_pred
+
             y_preds.append(y_pred)
             s_preds.append(s_pred)
 
@@ -140,4 +162,4 @@ class TrajectoryFlowMatchingODE(BaseForecasting):
         return loss
 
     def configure_optimizers(self):
-        return torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
+        return torch.optim.AdamW(self.parameters(), lr=self.lr)

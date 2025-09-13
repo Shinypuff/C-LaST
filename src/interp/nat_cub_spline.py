@@ -112,43 +112,5 @@ def eval_cubic_spline_1d(coeffs: Tensor, t_obs: Tensor, t_eval: Tensor):
     return res
 
 
-class NaturalCubicSpline(nn.Module):
-    """Natural cubic spline interpolator."""
-
-    def fit(self, t: Tensor, x: Tensor):
-        """Fit a multidimensional cubic spline.
-
-        Args:
-        ----
-            t (Tensor): tensor of shape (B, L).
-            x (Tensor): tensor of shape (B, L, H) or (B, M, L, H1) (multi-head).
-
-        """
-        self.t_obs = t
-
-        # Vmap over batch dimension.
-        fit_vmapped = torch.vmap(fit_cubic_spline_1d)  # t: (B, L) -> (B, 4, L - 1)
-        eval_vmapped = torch.vmap(eval_cubic_spline_1d)
-
-        if x.ndim == 4:
-            # Vmap over head dimension
-            fit_vmapped = torch.vmap(fit_vmapped, (None, 1), 1)
-            eval_vmapped = torch.vmap(eval_vmapped, (1, None, 1), 1)
-
-        # Vmap over channel dimension.
-        fit_vmapped = torch.vmap(fit_vmapped, (None, -1), -1)
-        eval_vmapped = torch.vmap(eval_vmapped, (-1, None, None), -1)
-
-        self.coeffs: Tensor = fit_vmapped(t, x)  # (B, M, 4, L, C)
-        self.eval_vmapped = eval_vmapped
-
-    def forward(self, t: Tensor) -> Tensor:
-        """Interpolate observations for given time values.
-
-        Arguments:
-        ---------
-        t (Tensor):
-            time tensor, shape (B) or (B, M) (multi-head).
-
-        """
-        return self.eval_vmapped(self.coeffs, self.t_obs, t)
+fit_cubic_spline = torch.vmap(torch.vmap(fit_cubic_spline_1d), (None, -1), -1)
+eval_cubic_spline = torch.vmap(torch.vmap(eval_cubic_spline_1d), (-1, None, None), -1)

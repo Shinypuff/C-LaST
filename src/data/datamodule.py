@@ -101,7 +101,6 @@ class DataModule(LightningDataModule):
         self.ctx_scale = ctx_train.std(dim=(0, 1))
         self.tgt_scale = obs_train.std(dim=(0, 1))
 
-        # TODO: check if tensors:
         self.train_ds = TensorDataset(ctx_train, obs_train, tgt_train)
         self.val_ds = TensorDataset(ctx_val, obs_val, tgt_val)
         self.test_ds = TensorDataset(ctx_test, obs_test, tgt_test)
