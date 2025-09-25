@@ -51,10 +51,10 @@ def split_history_horizon(
     df_idx = df.cast(pl.Float32).with_row_index()
 
     ctx_df = (
-        df_idx.rolling("index", period=f"{history + horizon}i", offset=f"-{history}i")
+        df_idx.rolling("index", period=f"{history}i")
         .agg(time_expr.diff().fill_null(0), *ctx_cols)
         .slice(history, -horizon)
-        .select(pl.exclude("index").list.to_array(history + horizon))
+        .select(pl.exclude("index").list.to_array(history))
     )
 
     obs_df = (
@@ -71,7 +71,7 @@ def split_history_horizon(
         .select(pl.col(*tgt_cols).list.to_array(horizon))
     )
 
-    ctx = torch.stack([ctx_df[c].to_torch() for c in ctx_df.columns], axis=-1)
+    ctx = torch.stack([ctx_df[c].to_torch().float() for c in ctx_df.columns], axis=-1)
     obs = torch.stack([obs_df[c].to_torch() for c in tgt_cols], axis=-1)
     tgt = torch.stack([tgt_df[c].to_torch() for c in tgt_cols], axis=-1)
 
