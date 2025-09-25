@@ -16,6 +16,5 @@ docker run \
 	--net=host \
 	--mount type=bind,src=/home/${USER}/${SRC},dst=/app \
 	--mount type=bind,src=${DATA_HOST_DIR},dst=${DATA_DIR} \
-	--mount type=bind,src=${MLRUNS_HOST_DIR},dst=${MLRUNS_DIR} \
 	--gpus all \
 	${CONTAINER_NAME} bash

@@ -83,7 +83,7 @@ class BaseForecasting(LightningModule):
 
         distribution_metrics = MetricCollection({"crps": CRPS()})
         pointwise_metrics = MetricCollection(
-            {"nmae": NMAE(), "mse": MeanSquaredError(num_outputs=self.tgt_dim)}
+            {"nmae": NMAE(), "mse": MeanSquaredError()} ### here
         )
 
         self.val_metrics_d = distribution_metrics.clone("val_")

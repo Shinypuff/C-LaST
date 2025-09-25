@@ -1,8 +1,7 @@
 # @package _global_
 
-datasource: /mnt/data/k2vae/ETT-small/ETTm1.csv
+datasource: data/k2vae/ETT-small/ETTm1.csv
 context: 24
 horizon: 24
 tgt_cols: [OT]
-ctx_cols: [HUFL, HUFR, HPRO, LUFL, LUFR, LPRO]
 time_col: date
