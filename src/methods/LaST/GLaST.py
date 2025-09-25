@@ -293,8 +293,9 @@ class GLaSTForecaster(BaseForecasting):
 
         mean = self.mean_net(z)
         scale = self.scale_net(z)
-
+        
         loss = gaussian_nll(tgt, mean, scale) - elbo - mlbo + mubo
+
         self.log("train_nll_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
     

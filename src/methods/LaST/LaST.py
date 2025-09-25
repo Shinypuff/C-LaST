@@ -241,8 +241,6 @@ class LaSTForecaster(BaseForecasting):
         self.criterion = nn.MSELoss()
         self.lr = lr
 
-        self._para_mode = 0
-
         self.LaSTLayer = LaSTBlock(
             self.in_dim, self.out_dim, 
             input_len, output_len, 
@@ -290,7 +288,7 @@ class LaSTForecaster(BaseForecasting):
 
     def _set_parameter_mode(self, para_mode):
         if para_mode == 0:
-            for para in self.model.parameters():
+            for para in self.parameters():
                 para.requires_grad = True
 
             for para in self.LaSTLayer.MuboNet.parameters():
@@ -301,7 +299,7 @@ class LaSTForecaster(BaseForecasting):
                 para.requires_grad = False
 
         elif para_mode == 1:
-            for para in self.model.parameters():
+            for para in self.parameters():
                 para.requires_grad = False
 
             for para in self.LaSTLayer.MuboNet.parameters():
