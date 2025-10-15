@@ -1,0 +1,20 @@
+# @package _global_
+
+method:
+  _target_: src.methods.LaST.LaSTForecaster
+  var_num: 1  
+  hidden_dim: 64  
+  dropout: 0.1
+  lr: 1e-3
+  backbone: feednet #feednet or transformer
+  # backbone_args:
+  #   d_ff: 128
+  #   dropout: 0.3
+
+patience: 10
+trainer_args:
+  max_epochs: 1
+  
+# Конфиг-файл глобального уровня, с package global
+# тут можно указать любые параметры, в частности 
+# тут удобно менять  обучения (patience, check_val_every_n_epoch).

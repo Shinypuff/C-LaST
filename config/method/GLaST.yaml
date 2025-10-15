@@ -1,0 +1,14 @@
+# @package _global_
+
+method:
+  _target_: src.methods.GLaST.GLaST_legacy.GLaSTForecaster
+  input_len: 24
+  output_len: 24
+  var_num: 1  
+  hidden_dim: 64  
+  dropout: 0.1
+  lr: 1e-3
+
+patience: 20
+trainer_args:
+  max_epochs: 1
