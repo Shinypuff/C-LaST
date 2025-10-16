@@ -1,4 +1,5 @@
 """File with instantiation utils."""
+
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 
@@ -15,7 +16,7 @@ def from_config(cfg: DictConfig):
 
     Args:
         cfg (DictConfig): A configuration object containing keys for datasource, context, horizon,
-                        tgt_cols, time_col, batch_size, num_workers, method, hidden_dim, and learning_rate.
+                        target_cols, time_col, batch_size, num_workers, method, hidden_dim, and learning_rate.
 
     Returns:
         tuple[BaseForecasting, DataModule]: A tuple containing the instantiated forecasting module
@@ -26,11 +27,13 @@ def from_config(cfg: DictConfig):
         datasource=cfg["datasource"],
         context=cfg["context"],
         horizon=cfg["horizon"],
-        tgt_cols=cfg["tgt_cols"],
+        target_cols=cfg["target_cols"],
         time_col=cfg["time_col"],
         train_batch_size=cfg["train_batch_size"],
         eval_batch_size=cfg["eval_batch_size"],
         num_workers=cfg["num_workers"],
+        has_time=cfg["has_time"],
+        has_date=cfg["has_date"],
     )
 
     # Note to (future) self:
@@ -38,13 +41,10 @@ def from_config(cfg: DictConfig):
     # (instantiate often plays bad with them)
     module: BaseForecasting = instantiate(
         cfg["method"],
-        ctx_dim=datamodule.ctx_dim,
-        tgt_dim=datamodule.tgt_dim,
-        ctx_mean=datamodule.ctx_mean,
-        ctx_scale=datamodule.ctx_scale,
-        tgt_mean=datamodule.tgt_mean,
-        tgt_scale=datamodule.tgt_scale,
-        unscale_metrics=cfg["unscale_metrics"],
+        target_dim=datamodule.target_dim,
+        context=cfg["context"],
+        horizon=cfg["horizon"],
+        time_feat_dim=datamodule.time_feat_dim,
     )
 
     return module, datamodule
