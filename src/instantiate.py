@@ -1,5 +1,4 @@
 """File with instantiation utils."""
-
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 
