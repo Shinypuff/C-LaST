@@ -84,11 +84,13 @@ class Transformer(nn.Module):
     def __init__(self, in_dim, out_dim, d_ff=128, n_layers=1, n_heads=1, dropout=0.1, **kwargs):
         super().__init__()
         
+        self.input_proj = nn.Linear(in_dim, out_dim)
+        
         self.pos_encoding = PositionalEncoding(out_dim)
         
         self.layers = nn.Sequential(*[
             TransformerBlock(
-                in_dim if i == 0 else out_dim, 
+                out_dim,
                 out_dim, 
                 n_heads, 
                 d_ff, 
@@ -99,6 +101,11 @@ class Transformer(nn.Module):
 
     def forward(self, x):
         # x: [batch_size, seq_len, in_dim]
-        x = self.layers(x)
+        x = self.input_proj(x)
+        
+        # позиционное кодирование
         x = self.pos_encoding(x)
+        
+        # трансформерные слои
+        x = self.layers(x)
         return x
