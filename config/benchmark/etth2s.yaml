@@ -3,5 +3,7 @@
 datasource: data/k2vae/ETT-small/ETTh2.csv
 context: 24
 horizon: 24
-tgt_cols: [OT]
+target_cols: [OT, HUFL, HUFR, HPRO, LUFL, LUFR, LPRO]
 time_col: date
+has_time: true
+has_date: true

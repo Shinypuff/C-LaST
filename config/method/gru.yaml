@@ -1,5 +1,6 @@
 _target_: src.methods.gru.GRUForecaster
 num_layers: 2
+dropout: 0.1
 hidden_dim: 256
 lr: 1e-3
 

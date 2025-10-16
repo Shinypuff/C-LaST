@@ -3,5 +3,7 @@
 datasource: data/k2vae/ETT-small/ETTh1.csv
 context: 24
 horizon: 24
-tgt_cols: null
+target_cols: ["HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"]
 time_col: date
+has_time: true
+has_date: true

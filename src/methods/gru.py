@@ -1,7 +1,7 @@
 """File with an example supervised forecasting model."""
 
 import torch
-from torch import Tensor, nn
+from torch import nn
 
 from ..layers.mlp import MLP
 from .base import BaseForecasting
@@ -29,29 +29,35 @@ class GRUForecaster(BaseForecasting):
 
     """
 
-    def __init__(self, num_layers: int, hidden_dim: int, lr: float, **base_kwargs):
+    def __init__(
+        self, num_layers: int, dropout: float, hidden_dim: int, lr: float, **base_kwargs
+    ):
         """Initialize internal state."""
         super().__init__(**base_kwargs)
 
-        input_dim = self.tgt_dim + self.ctx_dim
         self.encoder = nn.GRU(
-            input_dim, hidden_dim, num_layers=num_layers, batch_first=True
-        )
-
-        self.decoder = nn.GRU(
-            hidden_dim + self.ctx_dim,
+            self.target_dim + self.time_feat_dim,
             hidden_dim,
+            dropout=dropout,
             num_layers=num_layers,
             batch_first=True,
         )
 
-        self.mu_mlp = MLP(hidden_dim, hidden_dim, self.tgt_dim)
-        self.std_mlp = MLP(hidden_dim, hidden_dim, self.tgt_dim)
+        self.decoder = nn.GRU(
+            self.time_feat_dim,
+            hidden_dim,
+            dropout=dropout,
+            num_layers=num_layers,
+            batch_first=True,
+        )
+
+        self.mu_mlp = MLP(hidden_dim, hidden_dim, self.target_dim)
+        self.std_mlp = MLP(hidden_dim, hidden_dim, self.target_dim)
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         self.lr = lr
 
-    def forward(self, ctx: Tensor, obs: Tensor, T: int):
+    def forward(self, time_feats, x):
         """Run the forward pass of the model.
 
         Args:
@@ -64,19 +70,17 @@ class GRUForecaster(BaseForecasting):
                 (batch_size, T, tgt_dim) for the forecasted distribution.
 
         """
-        L = obs.shape[1]
+        L = x.shape[1]
+        T = time_feats.shape[1] - L
 
-        # We predict using future ctx value
-        past = torch.cat([ctx[:, :L], obs], dim=-1)
-        h0 = self.encoder(past)[0][:, -1]
+        # We predict using future dt value
+        past = torch.cat([time_feats[:, :L], x], dim=-1)
+        h = self.encoder(past)[1]
 
         hiddens = []
-        h = None
-
         for i in range(L, L + T):
-            x = torch.cat([ctx[:, i], h0], dim=-1)
-            x, h = self.decoder(x[:, None], h)
-            hiddens.append(x.squeeze(1))
+            out, h = self.decoder(time_feats[:, None, i], h)
+            hiddens.append(out.squeeze(1))
 
         hiddens = torch.stack(hiddens, dim=1)
         means = self.mu_mlp(hiddens)
