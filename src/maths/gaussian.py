@@ -19,11 +19,3 @@ def gaussian_pdf(x: Tensor):
 def gaussian_log_pdf(x: Tensor):
     """Gaussian log probability density function."""
     return -(x**2) / 2 - math.log(2 * math.pi) / 2
-
-
-def gaussian_kldiv(mu1, sigma1, mu2, sigma2):
-    return (
-        (torch.log(sigma2) - torch.log(sigma1))
-        + (sigma1**2 + (mu1 - mu2) ** 2) / (2 * sigma2**2)
-        - 0.5
-    )

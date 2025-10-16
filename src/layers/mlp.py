@@ -1,3 +1,5 @@
+"""File with a basic MLP class."""
+
 from typing import Callable
 
 import torch
@@ -10,6 +12,13 @@ class MLP(nn.Module):
     This class implements a fully connected neural network with configurable input, hidden, and output dimensions.
     The network consists of three linear layers with Batch Normalization and SELU activation functions.
 
+    Args:
+        input_dim (int): The dimension of the input features.
+        hidden_dim (int): The dimension of the hidden layers.
+        output_dim (int): The dimension of the output.
+
+    Attributes:
+        net (nn.Sequential): The sequential container holding the network layers.
 
     """
 
@@ -19,7 +28,6 @@ class MLP(nn.Module):
         hidden_dim: int,
         output_dim: int,
         hidden_layers: int = 2,
-        dropout: float = 0.0,
         final_act: Callable | None = None,
     ):
         """Initialize the MLP with specified input, hidden, and output dimensions.
@@ -44,7 +52,6 @@ class MLP(nn.Module):
                 nn.Linear(input_dim, hidden_dim),
                 nn.BatchNorm1d(hidden_dim),
                 nn.SELU(),
-                nn.Dropout(dropout),
             )
         )
         for _ in range(hidden_layers - 1):
@@ -53,7 +60,6 @@ class MLP(nn.Module):
                     nn.Linear(hidden_dim, hidden_dim),
                     nn.BatchNorm1d(hidden_dim),
                     nn.SELU(),
-                    nn.Dropout(dropout),
                 )
             )
 
