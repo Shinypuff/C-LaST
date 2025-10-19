@@ -1,22 +1,18 @@
 defaults:
  - _self_
- - benchmark: etth1s
- - method: LaST
+ - benchmark: weather-l
+ - method: GLaST
 
-benchmark: etth1s
 trainer_args:
-  max_epochs: 100
-  devices: [3]
-  default_root_dir: "/app/checkpoints"
+  max_epochs: 1
+  devices: 1
+  # check_val_every_n_epoch: 10
 
 patience: 10
 train_batch_size: 32
 eval_batch_size: 512
-num_workers: 16
+num_workers: 5
 seed: 0
-
-# Metrics aren't unscaled in K2VaE
-unscale_metrics: false
 
 hydra:
   job:

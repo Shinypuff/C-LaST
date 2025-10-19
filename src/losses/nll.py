@@ -5,7 +5,7 @@ from torch import Tensor
 from ..maths.gaussian import gaussian_log_pdf
 
 
-def gaussian_nll(y_true: Tensor, mean: Tensor, scale: Tensor):
+def gaussian_nll_loss(y_true: Tensor, mean: Tensor, scale: Tensor):
     """Compute the Gaussian Negative Log-Likelihood (NLL) loss.
 
     This function calculates the NLL loss assuming a Gaussian distribution parameterized by mean and scale.
