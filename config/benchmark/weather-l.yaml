@@ -1,0 +1,9 @@
+# @package _global_
+
+datasource: data/k2vae/weather/weather.csv
+context: 96
+horizon: 720
+target_cols: null # 22 variates
+time_col: date
+has_time: true
+has_date: true

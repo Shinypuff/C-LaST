@@ -2,13 +2,14 @@
 
 method:
   _target_: src.methods.GLaST.GLaST_legacy.GLaSTForecaster
-  input_len: 24
-  output_len: 24
+  backbone: transformer #feednet or transformer
+  input_len: 96
+  output_len: 720
   var_num: 1  
   hidden_dim: 64  
   dropout: 0.1
   lr: 1e-3
 
-patience: 20
+patience: 10
 trainer_args:
-  max_epochs: 1
+  max_epochs: -1

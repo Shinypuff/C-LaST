@@ -225,3 +225,18 @@ class LaSTBlock(nn.Module):
         elbo = elbo_t + elbo_s - rec_err
 
         return z_s, z_t, elbo
+    
+    def get_losses(self, x_his):
+        x_s, xs_rec, elbo_s, mlbo_s = self.SNet(x_his)
+        x_t, xt_rec, elbo_t, mlbo_t = self.TNet(x_his)
+
+        rec_err = ((xs_rec + xt_rec - x_his) ** 2).mean()
+        elbo = elbo_t + elbo_s - rec_err
+        
+        mlbo = mlbo_t + mlbo_s
+        mubo = self.MuboNet(x_his, self.SNet.VarUnit_s, self.TNet.VarUnit_t)
+
+        z_s = self.SNet.get_emb(x_his)[0]  # SNet
+        z_t = self.TNet.get_emb(x_his)[0]  # TNet
+        
+        return z_s, z_t, elbo, mlbo, mubo
