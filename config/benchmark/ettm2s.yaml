@@ -1,6 +1,6 @@
 # @package _global_
 
-datasource: data/k2vae/ETT-small/ETTh2.csv
+datasource: data/k2vae/ETT-small/ETTm2.csv
 context: 24
 horizon: 24
 target_cols: [OT, HUFL, HUFR, HPRO, LUFL, LUFR, LPRO]

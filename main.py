@@ -18,7 +18,7 @@ from src.instantiate import from_config
 from src.logging import cfg2hparams
 
 
-@hydra.main(config_path="config", config_name="main")
+@hydra.main(config_path="config", config_name="main", version_base=None)
 def main(cfg: DictConfig):
     torch.set_float32_matmul_precision("medium")
     hydra_choices = HydraConfig.get().runtime.choices
