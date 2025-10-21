@@ -9,7 +9,7 @@ This repo implements C-LaST, a simplified variant of LaST that replaces heavy MI
 - Probabilistic forecasts: from point prediction to Gaussian likelihoods (means + stds) to model uncertainty. 
 - Moved code to PyTorch Lightning, keep a single entry point.
 
-### Repo sctructure:
+### Repo sctructure (main files and folders):
 
 ```
 ├─ config/                # YAML configs for data, model
