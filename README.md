@@ -14,9 +14,11 @@ LaST framework for time series forecasting suffers from high computational compl
 
 ## Our solution: Contrastive LaST
 
-- Optimized the loss function: MI bounds + complex ELBO pieces were replaced with a contrastive loss over temporal neighborhoods by combining probabilistic forecasting with trend and seasonal regularization. Trend loss and seasonal loss computed using similarity-based ground truth matrices (soft/hard dependencies).
-- Moved from from point prediction to Gaussian likelihoods with probabilistic forecasts to model uncertainty. Model predicts mean μ, standard deviation σ for each future step, assuming independence between future steps. Predictive term replaced by Gaussian Negative Log-Likelihood (NLL) for probabilistic forecasting.
-- Moved the code to PyTorch Lightning to keep a single entry point.
+1) Optimized the loss function: MI bounds + complex ELBO pieces were replaced with a contrastive loss over temporal neighborhoods by combining probabilistic forecasting with trend and seasonal regularization. Trend loss and seasonal loss computed using similarity-based ground truth matrices (soft/hard dependencies).
+
+2) Moved from from point prediction to Gaussian likelihoods with probabilistic forecasts to model uncertainty. Model predicts mean μ, standard deviation σ for each future step, assuming independence between future steps. Predictive term replaced by Gaussian Negative Log-Likelihood (NLL) for probabilistic forecasting.
+
+3) Moved the code to PyTorch Lightning to keep a single entry point.
 
 ### Repo sctructure (main files and folders):
 
