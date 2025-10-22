@@ -3,7 +3,16 @@
 Latent Seasonal-Trend Representations with a contrastive twist.
 This repo implements C-LaST, a simplified variant of LaST that replaces heavy MI/ELBO terms with a contrastive similarity objective and adopts probabilistic forecasting via Gaussian NLL. The goal is to keep LaST’s seasonal/trend factorization while making training simpler and more stable
 
-### What`s new
+Latent Seasonal-Trend Representation (LaST) is a deep learning method for forecasting of continues dependent data. This approach enhances prediction quality by decomposing the input time series into separate trend and seasonal representations
+
+<img width="877" height="313" alt="image" src="https://github.com/user-attachments/assets/0046e219-b91c-4472-9a2d-b2abc57cba32" />
+
+LaST framework for time series forecasting suffers from high computational complexity due to its reliance on a complex Evidence Lower Bound (ELBO) loss function. It also optimizes mutual information. Since computing mutual information I directly is challenging, it is optimized using lower and upper bounds implemented via critic functions.
+
+
+<img width="813" height="88" alt="image" src="https://github.com/user-attachments/assets/f8d86cd1-7933-4f4f-97ad-0c3bcd99e9d4" />
+
+## Our solution: Contrastive LaST
 
 - Simpler training: MI bounds + complex ELBO pieces were replaced with a contrastive loss over temporal neighborhoods. 
 - Probabilistic forecasts: from point prediction to Gaussian likelihoods (means + stds) to model uncertainty. 
