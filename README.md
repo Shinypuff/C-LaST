@@ -5,7 +5,8 @@ This repo implements C-LaST, a simplified variant of LaST that replaces heavy MI
 
 Latent Seasonal-Trend Representation (LaST) is a deep learning method for forecasting of continues dependent data. This approach enhances prediction quality by decomposing the input time series into separate trend and seasonal representations
 
-<img width="877" height="313" alt="image" src="https://github.com/user-attachments/assets/0046e219-b91c-4472-9a2d-b2abc57cba32" />
+<img width="1106" height="414" alt="image" src="https://github.com/user-attachments/assets/452ad96e-55a2-41da-be1e-0927a67e6b10" />
+
 
 LaST framework for time series forecasting suffers from high computational complexity due to its reliance on a complex Evidence Lower Bound (ELBO) loss function. It also optimizes mutual information. Since computing mutual information I directly is challenging, it is optimized using lower and upper bounds implemented via critic functions.
 
