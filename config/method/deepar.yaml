@@ -1,12 +1,9 @@
-_target_: src.methods.TSDiff.tsdiff.TSDiffCond
-hidden_dim: 64
-step_emb: 32 
-timesteps: 100
+_target_: src.methods.deepar.DeepAR
+num_layers: 1
 dropout: 0
-num_residual_blocks: 3
+hidden_dim: 256
 lr: 1e-3
-noise_observed: False
-val_samples: 50
+val_samples: 5
 test_samples: 100
 
 # Конфиг-файл локального уровня, без package global

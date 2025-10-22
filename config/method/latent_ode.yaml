@@ -2,3 +2,5 @@ _target_: src.methods.latent_ode.LatentODE
 hidden_dim: 256
 timescale: 5
 lr: 1e-3
+val_samples: 50
+test_samples: 100

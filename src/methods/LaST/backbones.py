@@ -100,12 +100,9 @@ class Transformer(nn.Module):
         ])
 
     def forward(self, x):
-        # x: [batch_size, seq_len, in_dim]
         x = self.input_proj(x)
         
-        # позиционное кодирование
         x = self.pos_encoding(x)
         
-        # трансформерные слои
         x = self.layers(x)
         return x

@@ -4,16 +4,13 @@ defaults:
  - method: GLaST
 
 trainer_args:
-  max_epochs: 1
-  devices: 1
+  max_epochs: -1
+  devices: [0]
   # check_val_every_n_epoch: 10
 
 patience: 10
-train_batch_size: 32
-eval_batch_size: 512
-num_workers: 5
-seed: 0
-
-hydra:
-  job:
-    chdir: false
+train_batch_size: 64
+val_batch_size: 1024 # Little samples => large batch size wo OOM
+test_batch_size: 512 # Lots of samples => RAM OOM
+num_workers: 16
+seed: 20

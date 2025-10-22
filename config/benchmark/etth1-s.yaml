@@ -1,6 +1,6 @@
 # @package _global_
 
-datasource: data/k2vae/ETT-small/ETTm1.csv
+datasource: data/k2vae/ETT-small/ETTh1.csv
 context: 24
 horizon: 24
 target_cols: ["HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"]

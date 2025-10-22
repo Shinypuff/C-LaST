@@ -1,5 +1,5 @@
 import torch
-from torch import nn
+from torch import nn, Tensor
 
 from .last_components import LaSTBlock, SNet, TNet
 from ..base import BaseForecasting
@@ -28,27 +28,26 @@ class LaSTForecaster(BaseForecasting):
             dropout=dropout,
             backbone=backbone,
             backbone_args=backbone_args,
+            contrast=False,
             )
 
-    def forward(self, dt, x):
+    def sample(self, dt: Tensor, x: Tensor, num_samples: int):
         L = x.shape[1]
-        T = dt.shape[1] - L
 
         dt = dt[:, :L,:]
 
         x_his = torch.cat([x, dt], dim=-1)
         x_s, x_t, _, _, _ = self.LaSTLayer(x_his)
         
-        mean = x_s + x_t
-        scale = torch.zeros_like(mean)
+        pred = x_s + x_t
+        trajectories = pred.unsqueeze(-1).cpu().repeat(1, 1, 1, num_samples)
 
-        return mean, scale
+        return trajectories
 
     def training_step(self, batch, *args, **kwargs):
         dt, x, y = batch
 
         L = x.shape[1]
-        T = dt.shape[1] - L
 
         dt = dt[:, :L,:]
         x_his = torch.cat([x, dt], dim=-1)

@@ -1,5 +1,5 @@
 """The trajectory flow matching module from https://arxiv.org/abs/2410.21154."""
 
-from .tfm_ode import TrajectoryFlowMatchingODE
+from .tfm import TrajectoryFlowMatching
 
-__all__ = ["TrajectoryFlowMatchingODE"]
+__all__ = ["TrajectoryFlowMatching"]

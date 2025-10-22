@@ -1,8 +1,8 @@
 # @package _global_
 
-datasource: data/k2vae/ETT-small/ETTm1.csv
-context: 24
-horizon: 24
+datasource: data/k2vae/ETT-small/ETTm2.csv
+context: 96
+horizon: 720
 target_cols: ["HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"]
 time_col: date
 has_time: true

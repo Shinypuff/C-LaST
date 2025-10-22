@@ -1,0 +1,4 @@
+_target_: src.methods.k2vae.K2VAEForecaster
+lr: 0.001
+val_samples: 50
+test_samples: 100

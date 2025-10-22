@@ -46,6 +46,7 @@ def main(cfg: DictConfig):
         trainer = Trainer(
             callbacks=[es_callback, ckpt_callback],
             logger=MLFlowLogger(run_id=run.info.run_id),
+            accelerator="gpu",
             **cfg.get("trainer_args", {}),
         )
 
@@ -63,9 +64,14 @@ def main(cfg: DictConfig):
             mlflow.end_run("FAILED")
             raise
 
-        mlflow.log_artifact(ckpt_callback.best_model_path)
-        module.load_state_dict(torch.load(ckpt_callback.best_model_path)["state_dict"])
-        trainer.test(module, datamodule)
+        if ckpt_callback.best_model_path:
+            mlflow.log_artifact(ckpt_callback.best_model_path)
+            module.load_state_dict(
+                torch.load(ckpt_callback.best_model_path)["state_dict"]
+            )
+            trainer.test(module, datamodule)
+        else:
+            logger.warning("No best model found in checkpoint!")
 
     torch.cuda.empty_cache()
     gc.collect()

@@ -1,10 +1,6 @@
 
 import logging
 from pytorch_lightning.utilities import rank_zero_only
-import opt_einsum as oe
-
-contract = oe.contract
-contract_expression = oe.contract_expression
 
 def get_logger(name=__name__, level=logging.INFO) -> logging.Logger:
     """Initializes multi-GPU-friendly python logger."""

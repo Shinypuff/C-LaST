@@ -1,15 +1,24 @@
 # @package _global_
 
 method:
-  _target_: src.methods.GLaST.GLaST_legacy.GLaSTForecaster
-  backbone: transformer #feednet or transformer
-  input_len: 96
-  output_len: 720
+  _target_: src.methods.LaST.GLaSTForecaster
   var_num: 1  
-  hidden_dim: 64  
+  hidden_dim: 64
   dropout: 0.1
   lr: 1e-3
+  val_samples: 50
+  test_samples: 100
+  backbone: feednet #feednet or transformer
+  # backbone_args:
+  #   d_ff: 256
+  #   n_layers: 6
+  #   n_heads: 8
+  #   dropout: 0.05
 
 patience: 10
 trainer_args:
   max_epochs: -1
+  
+# Конфиг-файл глобального уровня, с package global
+# тут можно указать любые параметры, в частности 
+# тут удобно менять  обучения (patience, check_val_every_n_epoch).

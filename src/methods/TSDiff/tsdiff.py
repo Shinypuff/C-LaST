@@ -1,6 +1,6 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import Tensor
 
 from src.methods.TSDiff.utils.s4 import BackboneModel
 from src.methods.base import BaseForecasting
@@ -182,17 +182,17 @@ class TSDiffCond(BaseForecasting):
 
         input_seq, observation_mask = self._get_obs_mask(obs, future)
 
-        pred = self.sample(
+        pred = self.get_sample(
             observation=input_seq,
             time_features=time_features,
             observation_mask=observation_mask,
             n_samples=num_samples,
-        )  
+        ).permute(0, 2, 3, 1) 
 
-        return pred[:,:,-T:,:]
+        return pred[:,-T:,:,:]
 
     @torch.no_grad()
-    def sample(self, observation, observation_mask, n_samples, time_features=None):
+    def get_sample(self, observation, observation_mask, n_samples, time_features=None):
 
         repeated_observation = repeat(observation, n_samples)
         repeated_observation_mask = repeat(observation_mask, n_samples)
@@ -216,16 +216,13 @@ class TSDiffCond(BaseForecasting):
         return seq
     
 
-    def forward(self, dt, x):
+    def sample(self, dt: Tensor, x: Tensor, num_samples: int):
         L = x.shape[1]
         T = dt.shape[1] - L
 
-        samples = self.forecast(x, self.num_samples, T, time_features=dt)
+        samples = self.forecast(x, num_samples, T, time_features=dt)
 
-        mean = samples.mean(dim=1)
-        scale = samples.std(dim=1)
-
-        return mean, scale
+        return samples
 
     def training_step(self, batch):
         dt, x, y = batch

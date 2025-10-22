@@ -19,13 +19,15 @@ class DataModule(LightningDataModule):
         has_time: bool,
         has_date: bool,
         train_batch_size: int,
-        eval_batch_size: int,
+        val_batch_size: int,
+        test_batch_size: int,
         num_workers: int,
     ):
         super().__init__()
         self.datasource = datasource
         self.train_batch_size = train_batch_size
-        self.eval_batch_size = eval_batch_size
+        self.val_batch_size = val_batch_size
+        self.test_batch_size = test_batch_size
         self.num_workers = num_workers
         self.context = context
         self.horizon = horizon
@@ -89,7 +91,7 @@ class DataModule(LightningDataModule):
     def val_dataloader(self):
         return DataLoader(
             self.val_ds,
-            batch_size=self.eval_batch_size,
+            batch_size=self.val_batch_size,
             shuffle=False,
             num_workers=self.num_workers,
         )
@@ -97,7 +99,7 @@ class DataModule(LightningDataModule):
     def test_dataloader(self):
         return DataLoader(
             self.test_ds,
-            batch_size=self.eval_batch_size,
+            batch_size=self.test_batch_size,
             shuffle=False,
             num_workers=self.num_workers,
         )

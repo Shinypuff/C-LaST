@@ -15,7 +15,8 @@ class DeNOTS(nn.Module):
         self,
         input_dim,
         hidden_dim: int,
-        timescale: float = 10,
+        timescale: float,
+        sigma: float,
     ):
         """Initialize the DeNOTS backbone.
 
@@ -37,7 +38,8 @@ class DeNOTS(nn.Module):
 
         self.timescale = timescale
 
-        term = to.ODETerm(AntiSynchVF(input_dim, self.hidden_dim), with_args=True)
+        vf = AntiSynchVF(input_dim, self.hidden_dim, sigma)
+        term = to.ODETerm(vf, with_args=True)
         stepper = to.Dopri5(term)
         controller = to.IntegralController(1e-3, 1e-3, term=term)
         self.solver = to.AutoDiffAdjoint(

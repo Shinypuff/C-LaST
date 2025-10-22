@@ -1,4 +1,7 @@
 _target_: src.methods.denots.DeNOTSForecaster
-timescale: 5
+timescale: 1
 hidden_dim: 256
+val_samples: 10
+test_samples: 100
+sigma: 0.1
 lr: 1e-3

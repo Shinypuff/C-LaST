@@ -1,65 +1,120 @@
-"""File with the CRPS metric."""
+"""File with the CRPS metric.
 
-import math
+A large part was taken from torchmetrics, but this is a more memory-efficient implementation.
+"""
+
+from typing import Any, Tuple
 
 import torch
 from torch import Tensor
 from torchmetrics import Metric
+from torchmetrics.utilities.checks import _check_same_shape
 
-from ..maths.gaussian import gaussian_cdf, gaussian_pdf
 
-
-def calc_crps(y_true: Tensor, mean: Tensor, scale: Tensor) -> Tensor:
-    """Calculate the CRPS metric, assuming normally-distributed predictions.
+def _crps_update(preds: Tensor, target: Tensor) -> Tuple[int, Tensor, Tensor]:
+    """Compute intermediate CRPS values before aggregation.
 
     Args:
-        y_true: The true values of the target variable.
-        mean: The predicted mean of the target variable.
-        scale: The predicted scale of the target variable.
+        preds: Tensor of shape (batch_size, ensemble_members)
+        target: Tensor of shape (batch_size,)
 
     Returns:
-        The CRPS metric.
-
-    Note:
-        The formula is taken from Gneitig et al., 2005:
-        https://journals.ametsoc.org/downloadpdf/view/journals/mwre/133/5/mwr2904.1.pdf
-
+        batch_size: int
+        diff: Tensor (batch-wise absolute error term)
+        ensemble_sum: Tensor (pairwise ensemble term)
 
     """
-    y0 = (y_true - mean) / scale
-    cdf = gaussian_cdf(y0)
-    pdf = gaussian_pdf(y0)
+    # Only second dimension should deviate in shape (the ensemble members)
+    _check_same_shape(preds[:, 0], target)
+    batch_size, n_ensemble_members = preds.shape
+    if n_ensemble_members < 2:
+        raise ValueError(
+            f"CRPS requires at least 2 ensemble members, but you provided {preds.shape}."
+        )
 
-    # When scale -> 0, CRPS tends to MAE.
-    return torch.where(
-        scale == 0,
-        (y_true - mean).abs(),
-        scale * (y0 * (2 * cdf - 1) + 2 * pdf - 1 / math.sqrt(torch.pi)),
+    # sort forecasts
+    preds = torch.sort(preds).values
+
+    # inflate observations:
+    observation_inflated = target.unsqueeze(1).expand_as(preds)
+
+    # Compute mean absolute difference between predictions and target
+    diff = (
+        torch.sum(torch.abs(preds - observation_inflated), dim=1) / n_ensemble_members
     )
 
+    # Compute ensemble term using the mean-of-abs-diff formula
+    ### CHANGED FROM HERE ###
+    shifts_arange = torch.arange(
+        -(n_ensemble_members - 1), n_ensemble_members, 2, dtype=preds.dtype
+    )  # [-(n-1), n-1, 2]
 
-class CRPS(Metric):
-    """Calculate the CRPS metric."""
+    ensemble_sum = (preds @ shifts_arange) / n_ensemble_members**2
+    ### END OF CHANGE ###
 
-    def __init__(self, **kwargs):
-        """Initialize the CRPS metric."""
+    return batch_size, diff, ensemble_sum
+
+
+class ContinuousRankedProbabilityScore(Metric):
+    r"""Computes continuous ranked probability score.
+
+    .. math::
+        CRPS(F, y) = \int_{-\infty}^{\infty} (F(x) - 1_{x \geq y})^2 dx
+
+    where :math:`F` is the predicted cumulative distribution function and :math:`y` is the true target. The metric is
+    usually used to evaluate probabilistic regression models, such as forecasting models. A lower CRPS indicates a
+    better forecast, meaning that forecasted probabilities are closer to the true observed values. CRPS can also be
+    seen as a generalization of the brier score for non binary classification problems.
+
+    As input to ``forward`` and ``update`` the metric accepts the following input:
+
+    - ``preds`` (:class:`~torch.Tensor`): Predicted float tensor with shape ``(N,d)``
+    - ``target`` (:class:`~torch.Tensor`): Ground truth float tensor with shape ``(N,d)``
+
+    As output of ``forward`` and ``compute`` the metric returns the following output:
+
+    - ``cosine_similarity`` (:class:`~torch.Tensor`): A float tensor with the cosine similarity
+
+    Args:
+        reduction: how to reduce over the batch dimension using 'sum', 'mean' or 'none' (taking the individual scores)
+        kwargs: Additional keyword arguments, see :ref:`Metric kwargs` for more info.
+
+    Example:
+        >>> from torch import randn
+        >>> from torchmetrics.regression import ContinuousRankedProbabilityScore
+        >>> preds = randn(10, 5)
+        >>> target = randn(10)
+        >>> crps = ContinuousRankedProbabilityScore()
+        >>> crps(preds, target)
+        tensor(0.7731)
+
+    """
+
+    is_differentiable: bool = False
+    higher_is_better: bool = False
+    full_state_update: bool = False
+    plot_lower_bound: float = 0.0
+
+    score: Tensor
+    total: Tensor
+
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self.add_state("crps", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("n", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state("score", default=torch.zeros(1), dist_reduce_fx="sum")
+        self.add_state("total", default=torch.zeros(1), dist_reduce_fx="sum")
 
-    def update(self, y_true: Tensor, mean, scale):
-        """Calculate the crps metric on new predictions, add it to internal state.
+    def update(self, preds: Tensor, target: Tensor) -> None:
+        """Update state with predictions and targets.
 
         Args:
-            y_true: The true values of the target variable.
-            mean: The predicted mean of the target variable.
-            scale: The predicted scale of the target variable.
+            preds: Predictions from model
+            target: Ground truth values
 
         """
-        crps = calc_crps(y_true, mean, scale)
-        self.crps += crps.sum()
-        self.n += y_true.numel()
+        batch_size, diff, ensemble_sum = _crps_update(preds, target)
+        self.score += torch.sum(diff - ensemble_sum)
+        self.total += batch_size
 
-    def compute(self):
-        """Compute the CRPS metric."""
-        return self.crps / self.n
+    def compute(self) -> Tensor:
+        """Compute the continuous ranked probability score over state."""
+        return self.score / self.total

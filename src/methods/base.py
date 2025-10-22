@@ -1,11 +1,8 @@
-from typing import Literal
-
 from pytorch_lightning import LightningModule
 from torch import Tensor
 from torchmetrics import MeanSquaredError, MetricCollection
 
-from ..losses.nll import gaussian_nll_loss
-from ..metrics.crps import CRPS
+from ..metrics.crps import ContinuousRankedProbabilityScore
 from ..metrics.nmae import NMAE
 
 
@@ -23,6 +20,8 @@ class BaseForecasting(LightningModule):
         context: int,
         horizon: int,
         time_feat_dim: int,
+        val_samples: int,
+        test_samples: int,
     ):
         """Initialize the base method."""
         super().__init__()
@@ -30,9 +29,17 @@ class BaseForecasting(LightningModule):
         self.context = context
         self.horizon = horizon
 
-        distribution_metrics = MetricCollection({"crps": CRPS()})
+        self.val_samples = val_samples
+        self.test_samples = test_samples
+
+        distribution_metrics = MetricCollection(
+            {"crps": ContinuousRankedProbabilityScore(compute_on_cpu=True)}
+        )
         pointwise_metrics = MetricCollection(
-            {"nmae": NMAE(), "mse": MeanSquaredError()}
+            {
+                "nmae": NMAE(compute_on_cpu=True),
+                "mse": MeanSquaredError(compute_on_cpu=True),
+            }
         )
 
         self.val_metrics_d = distribution_metrics.clone("val_")
@@ -44,20 +51,16 @@ class BaseForecasting(LightningModule):
         self.monitor_mode = "min"
         self.time_feat_dim = time_feat_dim
 
-    def training_step(self, batch: tuple[Tensor, Tensor, Tensor], *args, **kwargs):
-        """Perform a single training step."""
-        t, x, y = batch
-        mean, scale = self(t, x)
-        loss = gaussian_nll_loss(y, mean, scale)
-        self.log("train_nll_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-        return loss
-
     def validation_step(self, batch: tuple[Tensor, Tensor, Tensor], *args, **kwargs):
         """Perform a validation step on a batch of data."""
         t, x, y = batch
-        mean, scale = self(t, x)
-        self.val_metrics_d(y, mean, scale)
-        self.val_metrics_p(y, mean)
+        trajectories: Tensor = self.sample(t, x, self.val_samples)
+        self.val_metrics_d(trajectories.cpu().flatten(0, -2), y.cpu().flatten())
+        self.val_metrics_p(
+            trajectories.cpu().flatten(),
+            y.cpu().unsqueeze(-1).expand_as(trajectories).flatten(),
+        )
+
         self.log_dict(self.val_metrics_d, on_step=False, on_epoch=True, prog_bar=True)
         self.log_dict(self.val_metrics_p, on_step=False, on_epoch=True, prog_bar=True)
 
@@ -69,17 +72,21 @@ class BaseForecasting(LightningModule):
 
         """
         t, x, y = batch
-        mean, scale = self(t, x)
-        self.test_metrics_d(y, mean, scale)
-        self.test_metrics_p(y, mean)
+        trajectories: Tensor = self.sample(t, x, self.test_samples)
+        self.test_metrics_d(trajectories.cpu().flatten(0, -2), y.cpu().flatten())
+        self.test_metrics_p(
+            trajectories.cpu().flatten(),
+            y.cpu().unsqueeze(-1).expand_as(trajectories).flatten(),
+        )
+
         self.log_dict(self.test_metrics_d, on_step=False, on_epoch=True, prog_bar=True)
         self.log_dict(self.test_metrics_p, on_step=False, on_epoch=True, prog_bar=True)
 
-    def forward(self, dt: Tensor, x: Tensor):
-        """Run the forward pass of the model, override this method in children.
+    def sample(self, t: Tensor, x: Tensor, num_samples: int) -> Tensor:
+        """Sample samples from the learned distribution, override this method in children.
 
         Returns:
             tuple: A tuple containing the mean and scale tensors.
 
         """
-        raise NotImplementedError("Implement the forward method!")
+        raise NotImplementedError("Implement the sample method!")

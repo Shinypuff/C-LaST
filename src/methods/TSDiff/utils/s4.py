@@ -1,5 +1,3 @@
-import math
-
 import torch
 from torch import nn
 
@@ -7,7 +5,9 @@ import torch.nn.functional as F
 from einops import rearrange
 
 from .model_components import LinearActivation, Activation, DropoutNd, SinusoidalPositionEmbeddings
+from .kernels.kernel_utils import contract
 from .kernels import SSKernel
+from .logging import log
 
 def Conv1dKaiming(in_channels, out_channels, kernel_size):
     layer = nn.Conv1d(in_channels, out_channels, kernel_size)

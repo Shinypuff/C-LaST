@@ -3,24 +3,28 @@
 method:
   _target_: src.methods.CLaST.CLaSTForecaster
   var_num: 1  
-  hidden_dim: 64  
+  hidden_dim: 64
   dropout: 0.1
   lr: 1e-3
+  val_samples: 50
+  test_samples: 100
   loss_args:
-    alpha: 0.8
+    alpha: 0.5
     temporal_unit: 0
     tau: 0.1
-    G_type: ar
+    G_type: ma
     decay_type: gaussian
     k: 1
-  backbone: transformer #feednet or transformer
+  backbone: feednet #feednet or transformer
   # backbone_args:
-  #   d_ff: 128
-  #   dropout: 0.3
+  #   d_ff: 256
+  #   n_layers: 6
+  #   n_heads: 8
+  #   dropout: 0.05
 
-patience: 20
+patience: 10
 trainer_args:
-  max_epochs: 1
+  max_epochs: -1
   
 # Конфиг-файл глобального уровня, с package global
 # тут можно указать любые параметры, в частности 

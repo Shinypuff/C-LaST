@@ -7,7 +7,7 @@ from .backbones import FeedNet, Transformer
 from .units import *
 
 class VarUnit(nn.Module):
-    def __init__(self, in_dim, z_dim, backbone=None, backbone_args=None, VampPrior=False, pseudo_dim=201):
+    def __init__(self, in_dim, z_dim, backbone=None, backbone_args=None, VampPrior=False, pseudo_dim=201, contrast=False):
         super(VarUnit, self).__init__()
 
         self.in_dim = in_dim
@@ -37,7 +37,8 @@ class VarUnit(nn.Module):
             self.pseudo_std = 0.01
             self.add_pseudoinputs()
 
-        self.critic_xz = CriticFunc(z_dim, in_dim)
+        if not contrast:
+            self.critic_xz = CriticFunc(z_dim, in_dim)
 
     def add_pseudoinputs(self):
         self.idle_input = Variable(torch.eye(self.pseudo_dim, self.pseudo_dim, dtype=torch.float64, device=self.device),
@@ -128,7 +129,7 @@ class CalculateMubo(nn.Module):
 
 
 class SNet(nn.Module):
-    def __init__(self, in_dim, out_dim, seq_len, pred_len, inner_s, dropout=0.1, backbone=None, backbone_args=None):
+    def __init__(self, in_dim, out_dim, seq_len, pred_len, inner_s, dropout=0.1, backbone=None, backbone_args=None, contrast=False):
         super().__init__()
         self.in_dim = in_dim
         self.out_dim = out_dim
@@ -136,21 +137,26 @@ class SNet(nn.Module):
         self.pred_len = pred_len
         self.inner_s = inner_s
         """ VAE Net """
-        self.VarUnit_s = VarUnit(in_dim, inner_s, backbone, backbone_args)
+        self.VarUnit_s = VarUnit(in_dim, inner_s, backbone, backbone_args, contrast=contrast)
         self.RecUnit_s = FeedNet(inner_s, in_dim, type="mlp", n_layers=1, dropout=dropout)
         """ Fourier """
         self.FourierNet = NeuralFourierLayer(inner_s, out_dim, seq_len, pred_len)
         self.pred = FeedNet(self.inner_s, self.out_dim, type="mlp", n_layers=1)
 
+        self.contrast = contrast
+
     def forward(self, x_his):
         qz_s, xs_rec, elbo_s = self.get_emb(x_his)
-        
-        mlbo_s = self.VarUnit_s.compute_MLBO(x_his, qz_s)
 
         """ Fourier """
         xs_pred = self.pred(self.FourierNet(qz_s)[:, -self.pred_len:])
 
-        return xs_pred, xs_rec, elbo_s, mlbo_s
+        if not self.contrast:
+            mlbo_s = self.VarUnit_s.compute_MLBO(x_his, qz_s)
+            return xs_pred, xs_rec, elbo_s, mlbo_s
+
+        return qz_s, xs_pred, xs_rec, elbo_s
+
     
     def get_emb(self, x_his):
         qz_s, mean_qz_s, var_qz_s = self.VarUnit_s(x_his)
@@ -161,7 +167,7 @@ class SNet(nn.Module):
 
 
 class TNet(nn.Module):
-    def __init__(self, in_dim, out_dim, seq_len, pred_len, inner_t, dropout=0.1, backbone=None, backbone_args=None):
+    def __init__(self, in_dim, out_dim, seq_len, pred_len, inner_t, dropout=0.1, backbone=None, backbone_args=None, contrast=False):
         super().__init__()
         self.in_dim = in_dim
         self.out_dim = out_dim
@@ -169,15 +175,16 @@ class TNet(nn.Module):
         self.pred_len = pred_len
         self.inner_t = inner_t
 
-        self.VarUnit_t = VarUnit(in_dim, inner_t, backbone, backbone_args)
+        self.VarUnit_t = VarUnit(in_dim, inner_t, backbone, backbone_args, contrast=contrast)
         self.RecUnit_t = FeedNet(inner_t, in_dim, type="mlp", n_layers=1, dropout=dropout)
 
         self.t_pred_1 = FeedNet(self.seq_len, self.pred_len, type="mlp", n_layers=1)
         self.t_pred_2 = FeedNet(self.inner_t, self.out_dim, type="mlp", n_layers=1)
 
+        self.contrast = contrast
+
     def forward(self, x_his):
         qz_t, xt_rec, elbo_t = self.get_emb(x_his)
-        mlbo_t = self.VarUnit_t.compute_MLBO(x_his, qz_t)
 
         # mlp
         if len(x_his.shape) == 3:
@@ -185,7 +192,11 @@ class TNet(nn.Module):
         else:
             xt_pred = self.t_pred_2(self.t_pred_1(qz_t.permute(0, 3, 2, 1)).permute(0, 3, 2, 1))
 
-        return xt_pred, xt_rec, elbo_t, mlbo_t
+        if not self.contrast:
+            mlbo_t = self.VarUnit_t.compute_MLBO(x_his, qz_t)
+            return xt_pred, xt_rec, elbo_t, mlbo_t
+
+        return qz_t, xt_pred, xt_rec, elbo_t
     
     def get_emb(self, x_his):
         qz_t, mean_qz_t, var_qz_t = self.VarUnit_t(x_his)
@@ -195,27 +206,40 @@ class TNet(nn.Module):
 
 
 class LaSTBlock(nn.Module):
-    def __init__(self, in_dim, out_dim, seq_len, pred_len, s_func, inner_s, t_func, inner_t, dropout=0.1, backbone=None, backbone_args=None):
+    def __init__(self, in_dim, out_dim, seq_len, pred_len, s_func, inner_s, t_func, inner_t, dropout=0.1, backbone=None, backbone_args=None, contrast=False):
         super().__init__()
         self.input_dim = in_dim
         self.out_dim = out_dim
         self.seq_len = seq_len
         self.pred_len = pred_len
-        self.SNet = s_func(in_dim, out_dim, seq_len, pred_len, inner_s, dropout=dropout, backbone=backbone, backbone_args=backbone_args)
-        self.TNet = t_func(in_dim, out_dim, seq_len, pred_len, inner_t, dropout=dropout, backbone=backbone, backbone_args=backbone_args)
-        self.MuboNet = CalculateMubo(inner_s, inner_t, dropout=dropout)
+        self.SNet = s_func(in_dim, out_dim, seq_len, pred_len, inner_s, dropout=dropout, backbone=backbone, backbone_args=backbone_args, contrast=contrast)
+        self.TNet = t_func(in_dim, out_dim, seq_len, pred_len, inner_t, dropout=dropout, backbone=backbone, backbone_args=backbone_args, contrast=contrast)
+        self.contrast = contrast
+
+        if not contrast:
+            self.MuboNet = CalculateMubo(inner_s, inner_t, dropout=dropout)
 
     def forward(self, x_his):
-        x_s, xs_rec, elbo_s, mlbo_s = self.SNet(x_his)
-        x_t, xt_rec, elbo_t, mlbo_t = self.TNet(x_his)
+
+        if not self.contrast:
+            x_s, xs_rec, elbo_s, mlbo_s = self.SNet(x_his)
+            x_t, xt_rec, elbo_t, mlbo_t = self.TNet(x_his)
+
+            mlbo = mlbo_t + mlbo_s
+            mubo = self.MuboNet(x_his, self.SNet.VarUnit_s, self.TNet.VarUnit_t)
+
+        else:
+            z_s, x_s, xs_rec, elbo_s = self.SNet(x_his)
+            z_t, x_t, xt_rec, elbo_t = self.TNet(x_his)
 
         rec_err = ((xs_rec + xt_rec - x_his) ** 2).mean()
         elbo = elbo_t + elbo_s - rec_err
-        
-        mlbo = mlbo_t + mlbo_s
-        mubo = self.MuboNet(x_his, self.SNet.VarUnit_s, self.TNet.VarUnit_t)
 
-        return x_s, x_t, elbo, mlbo, mubo
+        if not self.contrast:
+            return x_s, x_t, elbo, mlbo, mubo
+        else:
+            return z_s, z_t, x_s, x_t, elbo
+        
 
     def get_emb(self, x_his):
         z_s, xs_rec, elbo_s = self.SNet.get_emb(x_his)
@@ -225,18 +249,3 @@ class LaSTBlock(nn.Module):
         elbo = elbo_t + elbo_s - rec_err
 
         return z_s, z_t, elbo
-    
-    def get_losses(self, x_his):
-        x_s, xs_rec, elbo_s, mlbo_s = self.SNet(x_his)
-        x_t, xt_rec, elbo_t, mlbo_t = self.TNet(x_his)
-
-        rec_err = ((xs_rec + xt_rec - x_his) ** 2).mean()
-        elbo = elbo_t + elbo_s - rec_err
-        
-        mlbo = mlbo_t + mlbo_s
-        mubo = self.MuboNet(x_his, self.SNet.VarUnit_s, self.TNet.VarUnit_t)
-
-        z_s = self.SNet.get_emb(x_his)[0]  # SNet
-        z_t = self.TNet.get_emb(x_his)[0]  # TNet
-        
-        return z_s, z_t, elbo, mlbo, mubo

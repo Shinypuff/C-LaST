@@ -1,11 +1,9 @@
 import torch
 from torch import Tensor
+from torch.nn import functional as F
 
 from ..layers.denots import DeNOTS
 from ..layers.mlp import MLP
-from ..layers.node import NeuralODE
-from ..losses.kldiv import gaussian_kldiv_loss
-from ..losses.nll import gaussian_nll_loss
 from .base import BaseForecasting
 
 
@@ -14,68 +12,86 @@ class LatentODE(BaseForecasting):
         super().__init__(**kwargs)
         self.lr = lr
 
-        self.encoder = DeNOTS(self.target_dim + 1, hidden_dim, timescale)
-        self.z_scale_mlp = MLP(hidden_dim, hidden_dim, hidden_dim)
-        self.decoder = NeuralODE(hidden_dim, timescale)
+        self.encoder = DeNOTS(
+            self.target_dim + self.time_feat_dim, hidden_dim, timescale, sigma=0
+        )
 
         self.z_mean_mlp = MLP(hidden_dim, hidden_dim, hidden_dim)
-        self.z_scale_mlp = MLP(hidden_dim, hidden_dim, hidden_dim, final_act=torch.exp)
+        self.z_lvar_mlp = MLP(hidden_dim, hidden_dim, hidden_dim)
+
+        self.decoder = DeNOTS(self.time_feat_dim, hidden_dim, timescale, sigma=0)
 
         self.x_mean_mlp = MLP(hidden_dim, hidden_dim, self.target_dim)
-        self.x_scale_mlp = MLP(
-            hidden_dim, hidden_dim, self.target_dim, final_act=torch.exp
-        )
+        self.x_lvar_mlp = MLP(hidden_dim, hidden_dim, self.target_dim)
 
-    def encode(self, dt: Tensor, x: Tensor, return_intermediate: bool = False):
-        L = x.shape[1]
-
-        time_inv = dt[:, :L].roll(-1, 1).flip(1).cumsum(dim=1)
-        x_ = torch.cat([dt[:, :L, None], x], dim=-1)
-        embedding = self.encoder(
-            x_.flip(1), time_inv, return_intermediate=return_intermediate
-        )
+    def encode(self, time_feats: Tensor, x: Tensor):
+        dt = time_feats[..., 0]
+        time_inv = dt.roll(-1, 1).flip(1).cumsum(dim=1)
+        x_ = torch.cat([time_feats, x], dim=-1)
+        embedding = self.encoder(x_.flip(1), time_inv)
         return embedding
 
-    def latent_distribution(self, embedding: Tensor):
+    def latent_distribution(self, embedding: Tensor) -> tuple[Tensor, Tensor]:
         mean = self.z_mean_mlp(embedding)
-        scale = self.z_scale_mlp(embedding)
-        return mean, scale
+        lvar = self.z_lvar_mlp(embedding)
+        return mean, lvar
 
-    def decode(self, sample: Tensor, time: Tensor):
-        embedded_seq = self.decoder(sample, time)
+    def decode(self, sample: Tensor, time_feats: Tensor):
+        time = time_feats[..., 0].cumsum(1)
+        embedded_seq = self.decoder(
+            time_feats, time, y0=sample, return_intermediate=True
+        )
         return embedded_seq
 
-    def forward(self, dt: Tensor, x: Tensor):
-        L = x.shape[1]
-        embedding = self.encode(dt, x)
-        mean, scale = self.latent_distribution(embedding)
-        sample = torch.randn_like(mean) * scale + mean
-        decoded = self.decode(sample, dt.cumsum(1))
-        mean = self.x_mean_mlp(decoded)
-        scale = self.x_scale_mlp(decoded)
-        return mean[:, L:], scale[:, L:]
+    def sample(
+        self,
+        time_feats: Tensor,
+        x: Tensor,
+        num_samples: int,
+    ):
+        embedding = self.encode(time_feats[:, : x.shape[1]], x)
+        meanz, lvarz = self.latent_distribution(embedding)
+
+        preds = []
+
+        for _ in range(num_samples):
+            sample = torch.randn_like(meanz) * (lvarz / 2).exp() + meanz
+            decoded = self.decode(sample, time_feats)[:, self.context :]
+            mean = self.x_mean_mlp(decoded)
+            lvar = self.x_lvar_mlp(decoded)
+            scale = (lvar / 2).exp()
+            pred: Tensor = torch.randn_like(mean) * scale + mean
+            preds.append(pred.cpu())
+
+        return torch.stack(preds, dim=-1)
 
     def training_step(self, batch, *args, **kwargs):
-        dt, x, y = batch
-        embedding = self.encode(dt, x)
-        zmean, zscale = self.latent_distribution(embedding)
-        z0 = torch.randn_like(zmean) * zscale + zmean
-        z = self.decode(z0, dt.cumsum(1))
+        time_feats, x, y = batch
+        embedding = self.encode(time_feats[:, : x.shape[1]], x)
+        meanz, lvarz = self.latent_distribution(embedding)
+        sample = torch.randn_like(meanz) * (lvarz / 2).exp() + meanz
+        decoded = self.decode(sample, time_feats)
 
-        xmean = self.x_mean_mlp(z)
-        xscale = self.x_scale_mlp(z)
-        reconstruction_loss = gaussian_nll_loss(torch.cat([x, y], dim=1), xmean, xscale)
-        regularization_loss = gaussian_kldiv_loss(zmean, zscale)
+        meanxy: Tensor = self.x_mean_mlp(decoded)
+        lvarxy: Tensor = self.x_lvar_mlp(decoded)
+        varxy = lvarxy.exp()
+        varz = lvarz.exp()
+
+        xy = torch.cat([x, y], dim=1)
+
+        reconstruction_loss = ((xy - meanxy) ** 2 / varxy + lvarxy).mean() / 2
+
+        regularization_loss = (varz + meanz**2 - lvarz).mean() / 2
 
         self.log(
-            "train_reconstruction_loss",
+            "train_nll_loss",
             reconstruction_loss,
             on_step=False,
             on_epoch=True,
             prog_bar=True,
         )
         self.log(
-            "train_regularization_loss",
+            "train_kld_loss",
             regularization_loss,
             on_step=False,
             on_epoch=True,

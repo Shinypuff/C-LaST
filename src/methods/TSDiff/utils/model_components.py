@@ -1,7 +1,8 @@
-from functools import partial
 import torch
+import math
 import torch.nn as nn
-from einops import rearrange, repeat
+from einops import rearrange
+from functools import partial
 
 
 def Activation(activation=None, dim=-1):
@@ -79,19 +80,18 @@ class DropoutNd(nn.Module):
             return X
         return X
 
+class SinusoidalPositionEmbeddings(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.dim = dim
 
-class OptimModule(nn.Module):
-    """Interface for Module that allows registering buffers/parameters with configurable optimizer hyperparameters"""
-
-    def register(self, name, tensor, lr=None):
-        """Register a tensor with a configurable learning rate and 0 weight decay"""
-
-        if lr == 0.0:
-            self.register_buffer(name, tensor)
-        else:
-            self.register_parameter(name, nn.Parameter(tensor))
-
-            optim = {"weight_decay": 0.0}
-            if lr is not None:
-                optim["lr"] = lr
-            setattr(getattr(self, name), "_optim", optim)
+    def forward(self, time):
+        device = time.device
+        half_dim = self.dim // 2
+        embeddings = math.log(10000) / (half_dim - 1)
+        embeddings = torch.exp(
+            torch.arange(half_dim, device=device) * -embeddings
+        )
+        embeddings = time[:, None] * embeddings[None, :]
+        embeddings = torch.cat((embeddings.sin(), embeddings.cos()), dim=-1)
+        return embeddings
